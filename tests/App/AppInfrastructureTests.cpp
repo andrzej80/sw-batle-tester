@@ -72,7 +72,7 @@ namespace
 			argv.push_back(argument.c_str());
 		}
 		std::ostringstream stream;
-		const int code = Application(bindings).run(static_cast<int>(argv.size()), argv.data(), stream);
+		const int code = Application({.bindings = bindings}).run(static_cast<int>(argv.size()), argv.data(), stream);
 		errors = stream.str();
 		return code;
 	}
@@ -185,7 +185,8 @@ TEST(Application_prints_all_parse_errors_and_does_not_start)
 		!= std::string::npos);
 	CHECK(errors.find(":3: [parse.unknown_command]: unknown command 'FLY'") != std::string::npos);
 	CHECK(errors.find("2 errors, simulation not started.") != std::string::npos);
-	CHECK(calls.empty());  // ни одна команда не выполнена
+	// Проход проверки выполняет разобравшиеся строки, чтобы найти все ошибки; запуска нет
+	CHECK(calls == (std::vector<std::string>{"MARCH 1"}));
 }
 
 TEST(Application_turns_internal_errors_into_exit_code_three)

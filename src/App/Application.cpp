@@ -3,6 +3,8 @@
 #include "DiagnosticPrinter.hpp"
 #include "Scenario/CommandRegistry.hpp"
 #include "Scenario/ScenarioLoader.hpp"
+#include "Scenario/ScenarioRunner.hpp"
+#include "Scenario/ScenarioValidator.hpp"
 
 #include <exception>
 #include <fstream>
@@ -11,22 +13,8 @@
 
 namespace sw::app
 {
-	namespace
-	{
-		std::vector<ScenarioError> toScenarioErrors(const std::vector<io::ParseDiagnostic>& diagnostics)
-		{
-			std::vector<ScenarioError> errors;
-			errors.reserve(diagnostics.size());
-			for (const io::ParseDiagnostic& diagnostic : diagnostics)
-			{
-				errors.push_back({diagnostic.line, diagnostic.command, diagnostic.code, diagnostic.message, {}, {}});
-			}
-			return errors;
-		}
-	}
-
-	Application::Application(std::vector<BindingFn> bindings) :
-			_bindings(std::move(bindings))
+	Application::Application(ApplicationOptions options) :
+			_options(std::move(options))
 	{}
 
 	int Application::run(int argc, const char* const* argv, std::ostream& errors) const
@@ -38,7 +26,7 @@ namespace sw::app
 				errors << "usage: sw_battle_test <scenario-file>\n";
 				return exit_code::Environment;
 			}
-			return runScenario(argv[1], errors);
+			return processFile(argv[1], errors);
 		}
 		catch (const std::exception& exception)
 		{
@@ -52,7 +40,7 @@ namespace sw::app
 		}
 	}
 
-	int Application::runScenario(const std::string& path, std::ostream& errors) const
+	int Application::processFile(const std::string& path, std::ostream& errors) const
 	{
 		std::ifstream file(path);
 		if (!file)
@@ -62,20 +50,27 @@ namespace sw::app
 		}
 
 		CommandRegistry registry;
-		for (const BindingFn bind : _bindings)
+		for (const BindingFn bind : _options.bindings)
 		{
 			bind(registry);
 		}
-
 		const LoadedScenario scenario = loadScenario(file, registry);
-		if (!scenario.parseErrors.empty())
+
+		// Проход 1: полный список ошибок, в stdout — ничего
+		std::vector<ScenarioError> problems = validateScenario(scenario);
+		if (!problems.empty())
 		{
-			printScenarioErrors(errors, path, toScenarioErrors(scenario.parseErrors));
+			printScenarioErrors(errors, path, std::move(problems));
 			return exit_code::InvalidScenario;
 		}
 
-		// Проход проверки и запуск симуляции подключаются в задаче T15
-		errors << "sw_battle_test: simulation is not connected yet\n";
+		// Проход 2: события в stdout
+		const std::unique_ptr<core::IRandom> random = _options.random();
+		const core::StopReason reason = runScenario(scenario, _options.outputs, *random, _options.tickLimit);
+		if (reason == core::StopReason::TickLimit)
+		{
+			errors << "simulation stopped: tick limit (" << _options.tickLimit << ") reached\n";
+		}
 		return exit_code::Success;
 	}
 }

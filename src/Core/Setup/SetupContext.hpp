@@ -59,6 +59,13 @@ namespace sw::core
 		// Конец сценария: CREATE_MAP так и не было — map.not_created (если ещё не сообщалось)
 		Result<void> finish();
 
+		// Строка CREATE_MAP есть, но не разобралась: для правил это неудачный CREATE_MAP —
+		// последствия (map.not_created) подавляются, повторная команда — map.already_created
+		void noteFailedMapCommand()
+		{
+			_mapCommandSeen = true;
+		}
+
 		// Построенный мир; nullptr — карта не создана
 		World* world()
 		{

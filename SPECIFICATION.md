@@ -540,6 +540,7 @@ public:
     Result<void> spawn(SpawnRequest request);        // ошибки фабрики пробрасываются
     Result<void> orderMarch(UnitId, Position target);
     Result<void> finish();                           // конец сценария: не было CREATE_MAP
+    void noteFailedMapCommand();                     // строка CREATE_MAP не разобралась
     World* world();                                  // nullptr — карта не создана
 };
 ```
@@ -707,7 +708,13 @@ SpawnRequest reject(Diagnostics errors) const; // заявка с ошибкам
 ### 10.1 Application
 
 ```cpp
-explicit Application(std::vector<BindingFn> bindings = bindingList());  // тесты передают свои
+struct ApplicationOptions {                    // по умолчанию — как в main
+    std::vector<BindingFn> bindings = bindingList();
+    std::vector<OutputFn>  outputs  = outputList();
+    std::function<std::unique_ptr<IRandom>()> random;   // StdRandom с seed от random_device
+    Tick tickLimit = 30'000;
+};
+explicit Application(ApplicationOptions options = {});   // тесты подставляют свои части
 int Application::run(int argc, const char* const* argv, std::ostream& errors) const;
 // main: return Application{}.run(argc, argv, std::cerr);
 ```
@@ -732,11 +739,16 @@ int Application::run(int argc, const char* const* argv, std::ostream& errors) co
   все команды в `CommandParser`.
 - `loadScenario(input, registry)` — возвращает шаги `ScenarioStep{line, command, execute}`
   и ошибки разбора. Шаг можно выполнить несколько раз: на этом держатся два прохода.
-- `ScenarioValidator` (проход 1) — новый мир с `EventBus` без подписчиков; выполняет
-  все шаги, собирает ошибки, к каждой добавляет файл, строку и имя команды; для
-  `relatedUnit` ищет строку успешного спавна этого юнита.
-- `ScenarioRunner` (проход 2) — новый мир с подключённым `EventBridge`, все шаги,
-  затем `Simulation::run`.
+- `validateScenario` (проход 1) — новый мир с `EventBus` без подписчиков; выполняет
+  все разобравшиеся шаги (и тогда, когда в других строках есть ошибки разбора — список
+  должен быть полным), собирает ошибки, к каждой добавляет строку и имя команды; для
+  `relatedUnit` ищет строку успешного спавна этого юнита. Строка спавна узнаётся без
+  знания конкретных команд: юнит, появившийся в мире после шага, заспавнен этим шагом.
+  Строка `CREATE_MAP` с ошибкой разбора — это неудачный `CREATE_MAP`
+  (`SetupContext::noteFailedMapCommand`), последствия подавляются по правилу п. 7.
+- `runScenario` (проход 2) — новый мир с подключённым `EventBridge`, все шаги, затем
+  `Simulation::run`. Ошибка шага здесь — `std::logic_error`: проход 1 её пропустил.
+- Остановка по лимиту — сообщение в stderr, код 0.
 
 ### 10.3 Формат ошибок
 
