@@ -703,8 +703,14 @@ SpawnRequest reject(Diagnostics errors) const; // заявка с ошибкам
 ### 10.1 Application
 
 ```cpp
-int Application::run(int argc, char** argv);   // main: return Application{}.run(argc, argv);
+explicit Application(std::vector<BindingFn> bindings = bindingList());  // тесты передают свои
+int Application::run(int argc, const char* const* argv, std::ostream& errors) const;
+// main: return Application{}.run(argc, argv, std::cerr);
 ```
+
+- `run` не бросает: любое исключение печатается как `internal error` с кодом 3.
+- Коды — константы `exit_code::Success / Environment / InvalidScenario / InternalError`.
+- Сообщения приложения — в `errors` (stderr); stdout занят только событиями.
 
 | Ситуация | stderr | код |
 |---|---|---|
@@ -718,8 +724,10 @@ int Application::run(int argc, char** argv);   // main: return Application{}.run
 ### 10.2 Scenario
 
 - `CommandRegistry::on<TCommand>(handler(const TCommand&, SetupContext&) -> Result<void>)`
-  регистрирует команду в `CommandParser` и запоминает обработчик; дубль — `logic_error`.
-- `ScenarioLoader` — читает файл, возвращает шаги `{line, command, handler}` и ошибки разбора.
+  запоминает обработчик; дубль — `logic_error`. `installInto(parser, steps)` регистрирует
+  все команды в `CommandParser`.
+- `loadScenario(input, registry)` — возвращает шаги `ScenarioStep{line, command, execute}`
+  и ошибки разбора. Шаг можно выполнить несколько раз: на этом держатся два прохода.
 - `ScenarioValidator` (проход 1) — новый мир с `EventBus` без подписчиков; выполняет
   все шаги, собирает ошибки, к каждой добавляет файл, строку и имя команды; для
   `relatedUnit` ищет строку успешного спавна этого юнита.
@@ -734,7 +742,14 @@ error: <file>: [<code>]: <message>                 — ошибка без ст�
 <N> error(s), simulation not started.
 ```
 
-Ошибки выводятся в порядке строк; ошибки одной строки — в порядке обнаружения.
+Ошибки выводятся в порядке строк; ошибки одной строки — в порядке обнаружения;
+ошибки без строки — в конце.
+
+- Для нераспознанной команды имя команды не печатается:
+  `error: s.txt:2: [parse.unknown_command]: unknown command 'FLY'`.
+- Итог: `1 error, …` / `N errors, simulation not started.`
+- Хвост `(unit <id> spawned at line <L>)` — только когда строка спавна известна.
+- Печать — `App/DiagnosticPrinter` (`printScenarioErrors`, тип `ScenarioError`).
 
 ### 10.4 Output
 
