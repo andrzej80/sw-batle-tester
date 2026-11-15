@@ -1,0 +1,10 @@
+# Статический анализ в CI: типичные ошибки (bugprone) и лишние накладные расходы (performance).
+# easily-swappable-parameters отключено: оно срабатывает на любые два соседних параметра одного типа
+# (например, width/height), а такие сигнатуры у нас осознанные.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/src/.*'

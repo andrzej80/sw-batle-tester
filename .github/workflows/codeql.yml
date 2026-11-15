@@ -1,0 +1,52 @@
+name: CodeQL
+
+# Code scanning для C++. Результаты попадают в Security → Code scanning;
+# правило защиты ветки «Require code scanning results» ждёт их перед слиянием.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Еженедельно: новые запросы CodeQL могут найти проблемы в неизменённом коде.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (c-cpp)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          # Ручная сборка точнее режима без сборки: CodeQL видит реальные флаги компиляции.
+          build-mode: manual
+          queries: security-and-quality
+
+      # Для C++ CodeQL анализирует то, что компилируется, поэтому собирается только приложение
+      # (Core, Features, IO, App), без тестов: тестовый код не поставляется и проверяется
+      # своими средствами, а его регистраторы TEST(...) дают ложные «unused static function».
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel --target sw_battle_test
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp

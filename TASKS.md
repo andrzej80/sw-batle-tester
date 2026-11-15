@@ -58,7 +58,8 @@ T01 Каркас сборки и тестов
   `sw_io` (static), `sw_app` (OBJECT), `sw_battle_test`, `sw_tests`; флаги
   предупреждений; санитайзеры `undefined,implicit-conversion` для `sw_tests`
   (на Ubuntu нужен пакет `libclang-rt-15-dev`, спец. 11);
-  комментарий в CMake про запрет static для `sw_app`;
+  комментарий в CMake про запрет static для `sw_app`; проверка границ слоёв
+  `cmake/CheckLayerBoundaries.cmake` в каждой сборке (спец. 11);
   `tests/TestFramework.hpp` (`TEST`, `CHECK`, `CHECK_EQ`, `CHECK_THROWS`); `ctest`.
 - **Не трогать:** `cmake_minimum_required 3.27`.
 - **Готово:** пустой тест проходит в `ctest`; `main` вызывает заглушку `Application::run`.
