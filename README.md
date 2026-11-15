@@ -1,3 +1,93 @@
+# Решение
+
+Пошаговая симуляция боя юнитов на C++20 без внешних зависимостей. Ниже — как собрать,
+запустить и проверить решение; текст задания сохранён без изменений после черты.
+
+| Документ | О чём |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | слои и их границы, модель Core, механизмы расширения, рассмотренные варианты, принятые решения |
+| [SPECIFICATION.md](SPECIFICATION.md) | поведение модулей, коды ошибок, критерии приёмки |
+| [TASKS.md](TASKS.md) | деление работы на задачи |
+| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | известные недостатки и сомнения |
+
+## Сборка и запуск
+
+Требования: clang 15+, CMake 3.27+. На Ubuntu 24.04 — пакеты `clang-15` и `cmake`
+(в 22.04 cmake 3.22, этого мало).
+
+```bash
+cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++-15 -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+./build/sw_battle_test commands_example.txt
+```
+
+- stdout — только события в формате `[тик] СОБЫТИЕ поле=значение …`;
+- stderr — ошибки сценария и сообщения приложения;
+- коды выхода: `0` — симуляция прошла (в том числе остановка по лимиту 30 000 тиков),
+  `1` — нет аргумента или файл не открылся, `2` — ошибки в сценарии, `3` — внутренняя ошибка.
+
+Перед запуском сценарий проверяется целиком. Если есть ошибки, симуляция не стартует, а в
+stderr выводится полный список:
+
+```
+error: scenario.txt:3: SPAWN_HUNTER [unit.duplicate_id]: unit 1 already exists (unit 1 spawned at line 2)
+error: scenario.txt:4: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2, got 1
+error: scenario.txt:8: [parse.unknown_command]: unknown command 'FLY'
+3 errors, simulation not started.
+```
+
+## Тесты
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+| Тест | Что проверяет |
+|---|---|
+| `unit_tests` | юнит-тесты всех слоёв на собственном мини-фреймворке (`tests/TestFramework`) |
+| `scenario.<имя>` | приложение целиком на сценариях из `tests/scenarios` — сравнение с эталонными stdout, stderr и кодом выхода |
+| `layer_boundaries_*` | проверка границ слоёв: на заведомых нарушениях и на настоящем `src/` |
+
+Полезные опции CMake:
+
+- `-DCMAKE_COMPILE_WARNING_AS_ERROR=ON` — предупреждения как ошибки (как в CI);
+- `-DSW_SANITIZE=ON` — UBSan и проверка неявных преобразований знака и усечения (clang);
+- `-DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"` — ASan + UBSan, как в CI.
+
+CI (`.github/workflows/ci.yml`) собирает clang 15 и clang 18, запускает тесты с
+санитайзерами, clang-tidy и проверку форматирования clang-format-18.
+
+## Структура
+
+```
+src/
+  Core/       механизмы и базовые правила: мир, карта, ход из трёх фаз, отбор целей,
+              применение эффектов, марш, проверка установки сценария
+  Features/   контент: характеристики, действия, теги, юниты (Мечник, Охотник)
+  IO/         формат ввода и вывода: DTO команд и событий, парсер, EventLog
+  App/        связь слоёв: адаптеры команд и событий, проверка и запуск сценария
+  main.cpp
+tests/        юнит-тесты по слоям и сценарии с эталонами
+cmake/        проверка границ слоёв и запуск сценарных тестов
+```
+
+Границы слоёв проверяются при каждой сборке: Core не включает другие слои, Features —
+только Core, IO — только себя. Нарушение роняет сборку со списком всех нарушений.
+
+## Как добавить юнит
+
+Core не меняется, общие файлы не меняются — только новые файлы
+([ARCHITECTURE.md](ARCHITECTURE.md), п. 5.3):
+
+1. `src/IO/Commands/SpawnX.hpp` — DTO команды (формат ввода);
+2. `src/Features/Units/X.{hpp,cpp}` — спецификация юнита, проверка характеристик и сборка
+   из готовых деталей (`UnitBuilder`, `MeleeAttack`, `RangedAttack`, `stat<T>`, теги…);
+3. `src/App/Bindings/XBinding.cpp` — перевод DTO в спецификацию и `SW_REGISTER_BINDING`.
+
+Как ложатся юниты из планов (Башня, Лекарь, Ворон, Мина) — [ARCHITECTURE.md](ARCHITECTURE.md), п. 5.2.
+
+---
+
 # **Цель**
 
 Цель задания — **продемонстрировать навыки проектирования ПО.**

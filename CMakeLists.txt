@@ -84,7 +84,19 @@ if (SW_BUILD_TESTS)
 	add_executable(sw_tests ${test_sources})
 	target_include_directories(sw_tests PRIVATE "${PROJECT_SOURCE_DIR}/tests")
 	target_link_libraries(sw_tests PRIVATE sw_app)
+	target_compile_definitions(sw_tests PRIVATE SW_SCENARIOS_DIR="${PROJECT_SOURCE_DIR}/tests/scenarios")
 	add_test(NAME unit_tests COMMAND sw_tests)
+
+	# Сценарные тесты настоящего исполняемого файла: по одному на каталог tests/scenarios/*
+	# (tests/scenarios/README.md). Новый каталог подхватывается без правок CMake.
+	file(GLOB sw_scenario_inputs CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/tests/scenarios/*/scenario.txt")
+	foreach (scenario_input IN LISTS sw_scenario_inputs)
+		get_filename_component(scenario_dir "${scenario_input}" DIRECTORY)
+		get_filename_component(scenario_name "${scenario_dir}" NAME)
+		add_test(NAME "scenario.${scenario_name}"
+			COMMAND "${CMAKE_COMMAND}" "-DSW_BINARY=$<TARGET_FILE:sw_battle_test>" "-DSW_SCENARIO_DIR=${scenario_dir}"
+				-P "${PROJECT_SOURCE_DIR}/cmake/RunScenario.cmake")
+	endforeach()
 
 	# Сама проверка границ слоёв: на наборе файлов с заведомыми нарушениями она обязана
 	# найти их все, а на настоящем src/ — не найти ни одного.

@@ -1,7 +1,8 @@
 # Архитектура симуляции
 
-Статус: **утверждена**. Код по этому документу ещё не написан. Поведение модулей —
-в [SPECIFICATION.md](SPECIFICATION.md), деление на задачи — в [TASKS.md](TASKS.md).
+Статус: **утверждена и реализована** (задачи T01–T17). Поведение модулей —
+в [SPECIFICATION.md](SPECIFICATION.md), деление на задачи — в [TASKS.md](TASKS.md),
+известные недостатки — в [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ## 1. Цели и ограничения
 
@@ -82,26 +83,30 @@ src/
   IO/
     Commands/, Events/              — DTO (формат не меняется)
     System/CommandParser            — парсер, собирающий ошибки вместо исключений
+    System/ParseNumber              — строгий разбор uint32_t (без operator>>)
     System/EventLog
   Core/
-    Common/       Types (UnitId, Tick, Position), Distance (Чебышёв), DistanceRange,
-                  Result, Diagnostic, Tag/TagSet
-    Map/          Map (размер, занятость клеток), IMoveCostModifier, IEnterTrigger
-    Units/        Unit, хранилище компонентов, Health, Movement, Status,
-                  ComponentRequirements
-    Actions/      IAction, Behaviour (список по приоритету), MarchStep
-    Interaction/  Intent, Effect, TargetSpec, ITargetRule, Targeting, Hit,
-                  IHitModifier, Interaction
+    Common/       Types (UnitId, Tick, Position, chebyshev), DistanceRange, Narrow,
+                  Result, Diagnostic, Tag/TagSet, TypeName
+    Map/          Map (размер, разреженная занятость, свойства клеток),
+                  CellFeatures (IMoveCostModifier, IEnterTrigger)
+    Units/        Unit + UnitBlueprint, IComponent, ComponentStore (индекс хуков),
+                  CoreComponents (Health, Movement, Status), ComponentRequirements
+    Actions/      IAction, MarchStep
+    Interaction/  TargetSpec (Intent, Effect, TargetSpec, Hit), ITargetRule, IHitModifier,
+                  Targeting, Interaction
     World/        World (агрегат), UnitStore, SpatialQuery, ActivityTracker
-    Simulation/   Simulation (фазы), Scheduler, TurnContext, Termination
+    Simulation/   Simulation (фазы и условия конца), Scheduler, TurnContext, MovementService
     Events/       EventBus, CoreEvents
     Random/       IRandom, StdRandom
-    Setup/        SetupContext (createMap, spawn, orderMarch → Result)
+    Setup/        SetupContext (createMap, spawn, orderMarch → Result), SpawnRequest
   Features/
     Common/       CommonTags (melee, ranged, area, physical, flying),
-                  TargetSpecs (attack, heal, buff, debuff), Stats,
-                  Actions (MeleeAttack, RangedAttack), UnitBuilder
+                  TargetSpecs (attack, heal, buff, debuff), Stats, ValueSource (stat<T>,
+                  distance), UnitBuilder, Attacks (MeleeAttack, RangedAttack)
     Units/        Swordsman, Hunter — спецификация, проверка, сборка
+tests/            юнит-тесты по слоям; scenarios/ — сценарии с эталонами вывода
+cmake/            CheckLayerBoundaries (границы слоёв), RunScenario (сценарные тесты)
 ```
 
 ## 4. Модель Core
@@ -190,14 +195,14 @@ public:
 class TurnContext {
 public:
     Tick tick() const;
-    const SpatialQuery& query() const; // только чтение
-    Targeting& targeting();            // отбор целей с правилами цели
-    Interaction& effects();            // урон, лечение, наложение статуса
-    MovementService& movement();       // перемещение с проверкой занятости и событиями
-    Scheduler& scheduler();            // отложенные эффекты
-    void requestRemoval(UnitId);       // удаление не через HP
+    const SpatialQuery& query() const;          // только чтение
+    const Targeting& targeting() const;         // отбор целей с правилами цели
+    Interaction& effects();                     // урон, лечение, наложение статуса
+    MovementService& movement();                // перемещение с проверкой занятости и событиями
+    void schedule(Tick at, UnitId source, Scheduler::Task task);   // отложенный эффект
+    void requestRemoval(UnitId);                // удаление не через HP
     IRandom& random();
-    EventPublisher& events();          // публикация событий фич
+    template <class E> void publish(const E&);  // событие фичи
 };
 ```
 
@@ -563,21 +568,21 @@ using OutputFn  = void (*)(EventBridge&);
 std::vector<BindingFn>& bindingList();
 std::vector<OutputFn>&  outputList();
 
-struct BindingRegistrar { explicit BindingRegistrar(BindingFn fn) { bindingList().push_back(fn); } };
-struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn)   { outputList().push_back(fn); } };
+struct BindingRegistrar { explicit BindingRegistrar(BindingFn fn); };   // bindingList().push_back
+struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn); };     // outputList().push_back
 
 #define SW_REGISTER_BINDING(fn) \
-    namespace { const ::sw::app::BindingRegistrar SW_UNIQUE_NAME(swBinding_){&fn}; }
+    namespace { const ::sw::app::BindingRegistrar SW_APP_CONCAT(swBindingRegistrar_, __LINE__){&(fn)}; }
 #define SW_REGISTER_OUTPUT(fn) \
-    namespace { const ::sw::app::OutputRegistrar SW_UNIQUE_NAME(swOutput_){&fn}; }
+    namespace { const ::sw::app::OutputRegistrar SW_APP_CONCAT(swOutputRegistrar_, __LINE__){&(fn)}; }
 ```
 
 ```cpp
-// App/Application.cpp
-CommandRegistry commands;
-for (BindingFn bind : bindingList()) bind(commands);
-EventBridge bridge(eventLog);
-for (OutputFn bind : outputList()) bind(bridge);
+// App/Application.cpp и App/Scenario/ScenarioRunner.cpp
+CommandRegistry registry;
+for (const BindingFn bind : options.bindings) bind(registry);   // по умолчанию bindingList()
+EventBridge bridge(bus, log, clock);
+for (const OutputFn bind : outputs) bind(bridge);               // по умолчанию outputList()
 ```
 
 Известные риски и как они закрыты:
