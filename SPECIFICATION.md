@@ -66,39 +66,59 @@ struct DistanceRange {                                // включительн�
 
 ```cpp
 struct Diagnostic {
+    Diagnostic(std::string code, std::string message,
+               std::optional<UnitId> relatedUnit = std::nullopt);
     std::string code;                    // "unit.duplicate_id"
     std::string message;                 // "unit id 1 already exists"
     std::optional<UnitId> relatedUnit;   // App добавит "(unit 1 spawned at line 3)"
 };
-using Diagnostics = std::vector<Diagnostic>;
 
-template <class T> class Result;         // либо T, либо непустые Diagnostics
-template <>        class Result<void>;
+class Diagnostics {                      // все найденные ошибки, в порядке обнаружения
+public:
+    void add(Diagnostic);
+    void add(std::string code, std::string message, std::optional<UnitId> relatedUnit = {});
+    void append(const Diagnostics&);
+    bool empty() const; size_t size() const; const Diagnostic& operator[](size_t) const;
+    // begin(), end()
+};
+
+template <class T> class [[nodiscard]] Result;   // либо T, либо непустые Diagnostics
+template <>        class [[nodiscard]] Result<void>;
 ```
 
-- `Result` создаётся из значения или из `Diagnostics`; пустой список ошибок —
-  `std::logic_error`.
-- Доступ к значению при ошибке — `std::logic_error`.
+- `Result` создаётся из значения, из `Diagnostics` или из одного `Diagnostic`;
+  пустой список ошибок — `std::logic_error`. `Result<void>{}` — успех.
+- `ok()`; `value()` при ошибке — `std::logic_error`: значения не существует.
+  `errors()` при успехе — пустой список: это правдивый ответ «ошибок нет», поэтому
+  сбор ошибок может всегда писать `all.append(result.errors())` без проверки `ok()`.
+- `[[nodiscard]]`: результат проверки нельзя молча проигнорировать.
+- У `Diagnostic` есть конструктор, а не только агрегатная инициализация:
+  `{"code", "message"}` без `relatedUnit` иначе даёт `-Wmissing-field-initializers`.
 
 ### 1.3 Теги
 
 ```cpp
 class Tag {                                // интернируется по имени
 public:
-    explicit Tag(std::string_view name);   // одинаковое имя → один и тот же id
+    explicit Tag(std::string_view name);   // одинаковое имя → один и тот же id; пустое — logic_error
     std::string_view name() const;
-    bool operator==(Tag) const;
+    // ==, <=> — по id
 };
-class TagSet {
+class TagSet {                             // без повторов, равенство не зависит от порядка
 public:
     TagSet(std::initializer_list<Tag>);
+    void add(Tag);
     bool has(Tag) const;
     bool hasAny(const TagSet&) const;
+    // empty(), size(), begin(), end()
 };
 ```
 
 - Реестр имён — статическая переменная внутри функции; повторная регистрация имени
-  возвращает существующий id.
+  возвращает существующий id. Имена хранятся в `std::deque`, поэтому `name()` может
+  отдавать `string_view`: ссылки не меняются при добавлении тегов.
+- Реестр не потокобезопасен: симуляция однопоточная.
+- Файлы: `Core/Common/Types`, `DistanceRange`, `Narrow`, `Diagnostic`, `Result`, `Tag`.
 
 **Приёмка:** `Tag("fire") == Tag("fire")` в разных единицах трансляции;
 для `DistanceRange::shifted`:
