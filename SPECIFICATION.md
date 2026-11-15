@@ -91,6 +91,8 @@ template <>        class [[nodiscard]] Result<void>;
 - `ok()`; `value()` при ошибке — `std::logic_error`: значения не существует.
   `errors()` при успехе — пустой список: это правдивый ответ «ошибок нет», поэтому
   сбор ошибок может всегда писать `all.append(result.errors())` без проверки `ok()`.
+- У временного `Result` `errors()` возвращает список по значению, а не ссылку: иначе
+  `for (const auto& e : make().errors())` обходил бы уничтоженный объект (нашёл ASan).
 - `[[nodiscard]]`: результат проверки нельзя молча проигнорировать.
 - У `Diagnostic` есть конструктор, а не только агрегатная инициализация:
   `{"code", "message"}` без `relatedUnit` иначе даёт `-Wmissing-field-initializers`.
@@ -616,7 +618,9 @@ public:
 
 ### 8.2 EventLog
 
-Без изменений: `log(tick, event)` пишет `[tick] NAME field=value ...` в `std::cout`.
+`log(tick, event)` пишет `[tick] NAME field=value ...` в `std::cout`. Формат не менялся;
+конец строки — `'\n'` вместо `std::endl` (`performance-avoid-endl` в clang-tidy): буфер
+сбрасывается при выходе из программы, а не после каждой строки.
 
 **Приёмка:** `SPAWN_HUNTER 1 0 0 10 5 1` → `missing_argument: range`;
 `CREATE_MAP 10 x` → `invalid_number: height`; `MARCH 1 2 3 4` → `extra_argument`;
@@ -753,9 +757,13 @@ error: <file>: [<code>]: <message>                 — ошибка без ст�
 
 ### 10.4 Output
 
-- `EventBridge::on<E>(std::function<void(const E&, EventLog&, Tick)>)` — дубль типа
-  `logic_error`; подписывается на `EventBus`.
-- `CoreEventsOutput` переводит 7 событий Core в `io::Events` (`UnitHealed` — с Лекарем).
+- `EventBridge(bus, log, clock)`; `on<E>(std::function<void(const E&, EventLog&, Tick)>)` —
+  дубль типа или пустой адаптер — `logic_error`; подписывается на `EventBus`. Номер тика
+  берётся из `clock` в момент события (в приложении — `World::tick()`).
+- `CoreEventsOutput` переводит 7 событий Core в `io::Events` (`UnitHealed` — с Лекарем:
+  до тех пор событие без адаптера просто не выводится).
+- Адаптеры команд — `App/Bindings`: `CoreBindings` (`CREATE_MAP`, `MARCH`),
+  `SwordsmanBinding`, `HunterBinding`; каждый регистрируется сам (`SW_REGISTER_BINDING`).
 
 ### 10.5 Переводы типов на границе
 

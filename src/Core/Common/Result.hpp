@@ -63,10 +63,17 @@ namespace sw::core
 
 		// У успешного результата — пустой список: это правдивый ответ «ошибок нет»,
 		// поэтому сбор ошибок может всегда писать all.append(result.errors()).
-		const Diagnostics& errors() const
+		const Diagnostics& errors() const&
 		{
 			static const Diagnostics noErrors;
 			return ok() ? noErrors : std::get<1>(_state);
+		}
+
+		// У временного результата — список по значению, а не ссылка в уничтоженный объект:
+		// иначе for (const auto& e : make().errors()) обходил бы висячую ссылку
+		Diagnostics errors() &&
+		{
+			return ok() ? Diagnostics{} : std::get<1>(std::move(_state));
 		}
 
 	private:
@@ -102,9 +109,15 @@ namespace sw::core
 		}
 
 		// У успешного результата — пустой список (как у Result<T>)
-		const Diagnostics& errors() const
+		const Diagnostics& errors() const&
 		{
 			return _errors;
+		}
+
+		// У временного результата — по значению (см. Result<T>::errors() &&)
+		Diagnostics errors() &&
+		{
+			return std::move(_errors);
 		}
 
 	private:

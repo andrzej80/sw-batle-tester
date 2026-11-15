@@ -3,7 +3,9 @@
 #include <Core/Common/Result.hpp>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 using sw::core::Diagnostic;
 using sw::core::Diagnostics;
@@ -92,6 +94,22 @@ TEST(Result_errors_of_all_steps_can_be_collected_without_ok_checks)
 	CHECK_EQ(all.size(), size_t{2});
 	CHECK_EQ(all[0].code, std::string("a"));
 	CHECK_EQ(all[1].code, std::string("b"));
+}
+
+// Регрессия: ASan нашёл stack-use-after-scope в цикле по errors() временного результата
+TEST(Result_errors_of_a_temporary_can_be_iterated_safely)
+{
+	std::vector<std::string> codes;
+	for (const Diagnostic& error : parsePositive(-1).errors())
+	{
+		codes.push_back(error.code);
+	}
+	for (const Diagnostic& error : Result<void>(duplicateId()).errors())
+	{
+		codes.push_back(error.code);
+	}
+	CHECK(codes == (std::vector<std::string>{"value.not_positive", "unit.duplicate_id"}));
+	CHECK(parsePositive(1).errors().empty());
 }
 
 TEST(Diagnostics_append_keeps_order)

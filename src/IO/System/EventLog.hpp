@@ -17,7 +17,7 @@ namespace sw
 			std::cout << "[" << tick << "] " << TEvent::Name << " ";
 			PrintFieldVisitor visitor(std::cout);
 			event.visit(visitor);
-			std::cout << std::endl;
+			std::cout << '\n';
 		}
 	};
 }
