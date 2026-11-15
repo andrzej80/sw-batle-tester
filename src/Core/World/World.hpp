@@ -4,7 +4,9 @@
 #include "SpatialQuery.hpp"
 #include "UnitStore.hpp"
 
+#include <Core/Common/Types.hpp>
 #include <Core/Map/Map.hpp>
+#include <Core/Simulation/Scheduler.hpp>
 #include <cstddef>
 
 namespace sw::core
@@ -12,7 +14,6 @@ namespace sw::core
 	// Мир — агрегат частей с одной ответственностью (ARCHITECTURE.md, п. 4.2). Логики
 	// в нём нет, кроме связки «поставить юнита на карту» и «убрать удалённых с карты»,
 	// где Map и UnitStore должны измениться вместе. Фазы тика выполняет Simulation.
-	// Scheduler добавится в задаче T07.
 	class World
 	{
 	public:
@@ -58,6 +59,28 @@ namespace sw::core
 			return _activity;
 		}
 
+		Scheduler& scheduler()
+		{
+			return _scheduler;
+		}
+
+		const Scheduler& scheduler() const
+		{
+			return _scheduler;
+		}
+
+		// Текущий тик. Тик 1 — выполнение команд сценария; ходы начинаются с тика 2.
+		// Номер тика нужен и выводу событий, поэтому он хранится в мире, а не в Simulation.
+		Tick tick() const
+		{
+			return _tick;
+		}
+
+		void advanceTick()
+		{
+			++_tick;
+		}
+
 		// Ставит юнита на карту: клетка в карте, свободна (если юнит занимает клетку),
 		// id не занят — иначе std::logic_error. Ошибки ввода проверяет SetupContext раньше.
 		Unit& place(Unit unit);
@@ -70,5 +93,7 @@ namespace sw::core
 		UnitStore _units;
 		SpatialQuery _query;
 		ActivityTracker _activity;
+		Scheduler _scheduler;
+		Tick _tick = 1;
 	};
 }

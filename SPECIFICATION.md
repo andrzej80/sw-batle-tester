@@ -430,36 +430,46 @@ public:
 ```cpp
 class Scheduler {
 public:
-    using Effect = std::function<void(TurnContext&)>;
-    void schedule(Tick at, UnitId source, Effect);   // at ≤ текущий → logic_error
+    using Task = std::function<void(TurnContext&)>;
+    void schedule(Tick now, Tick at, UnitId source, Task);   // at ≤ now → logic_error
+    std::vector<Entry> takeDue(Tick now);                    // в порядке постановки
     bool empty() const;
-    // Simulation: забирает эффекты тика N в порядке постановки
 };
 ```
+
+- `Scheduler` и номер текущего тика хранятся в `World` (`tick()`, `advanceTick()`):
+  номер тика нужен и выводу событий, а не только симуляции.
 
 ### 6.2 TurnContext и MovementService
 
 `TurnContext` — как в архитектуре (п. 4.3). Изменяющие методы фасадов вызывают
-`ActivityTracker::markChange()`.
+`ActivityTracker::markChange()`: `schedule(at, source, task)`, `requestRemoval(id)`,
+`publish(event)` (события фич), а также всё, что делают `effects()` и `movement()`.
+`random()` изменением не считается.
 
 ```cpp
 class MovementService {
 public:
     // Один шаг в соседнюю клетку. false — у юнита нет Movement, клетка вне карты,
     // не соседняя или занята для этого юнита.
-    bool stepTo(const Unit&, Position cell);
+    bool stepTo(const Unit&, Position cell, TurnContext&);   // контекст — для триггеров клетки
+    void addMarch(const Unit&, Position target);             // первый в очереди — MarchStarted
+    void finishMarch(const Unit&);                           // MarchEnded, следующий — MarchStarted
 };
 ```
 
 `stepTo` при успехе: освобождает и занимает клетки (для `occupiesCell`), меняет
 позицию, публикует `UnitMoved`, вызывает `IEnterTrigger` клетки.
 
+`IRandom::index(count)` — случайный индекс в `[0, count)`; `StdRandom` — `mt19937_64` с
+seed, в приложении seed от `std::random_device`.
+
 ### 6.3 MarchStep
 
 ```
 нет Movement или очередь пуста          → false
 budget = speed; moved = false
-пока budget > 0 и юнит не в цели:
+пока budget > 0 и юнит не в цели и жив (триггер клетки мог его убить):
     кандидаты = соседние клетки, уменьшающие расстояние до цели и свободные для юнита
     если пусто → break
     cell = прямая клетка (sign(dx), sign(dy)), если она среди кандидатов,
@@ -467,7 +477,7 @@ budget = speed; moved = false
     cost = map.moveCost(cell, unit)
     если moved и cost > budget → break        // первый шаг разрешён всегда
     movement.stepTo(unit, cell); budget -= cost; moved = true
-если юнит в цели: MarchEnded; pop; если очередь не пуста → MarchStarted следующего
+если юнит в цели: finishMarch → return true      // события — изменение мира
 return moved
 ```
 
@@ -476,11 +486,16 @@ return moved
 ```cpp
 class Simulation {
 public:
-    Simulation(World&, EventBus&, IRandom&, Tick tickLimit = 30'000);
+    Simulation(World&, const EventBus&, IRandom&, Tick tickLimit = 30'000);   // < 2 → logic_error
     // Тик 1 уже прошёл (установка). Возвращает причину остановки.
     StopReason run();   // OneOrNoUnitsLeft | NothingHappened | TickLimit
+    std::optional<StopReason> runTick();   // один тик — для тестов
+    TurnContext& context();
 };
 ```
+
+- Снятие истёкших статусов не делает тик непустым: по правилу «пустой тик» считаются
+  только действия, отложенные эффекты и удаления юнитов.
 
 Цикл:
 

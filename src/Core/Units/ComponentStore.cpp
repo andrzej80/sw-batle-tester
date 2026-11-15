@@ -36,6 +36,23 @@ namespace sw::core
 		_components.emplace(type, std::move(component));
 	}
 
+	size_t ComponentStore::removeIf(const std::function<bool(const IComponent&)>& predicate)
+	{
+		std::vector<std::type_index> doomed;
+		for (const auto& [type, component] : _components)
+		{
+			if (predicate(*component))
+			{
+				doomed.push_back(type);
+			}
+		}
+		for (const std::type_index type : doomed)
+		{
+			remove(type);
+		}
+		return doomed.size();
+	}
+
 	bool ComponentStore::remove(std::type_index type)
 	{
 		const auto found = _components.find(type);

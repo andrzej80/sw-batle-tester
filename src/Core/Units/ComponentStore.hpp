@@ -3,6 +3,8 @@
 #include "IComponent.hpp"
 
 #include <Core/Common/TypeName.hpp>
+#include <cstddef>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -39,6 +41,10 @@ namespace sw::core
 
 		// Нет компонента — false
 		bool remove(std::type_index type);
+
+		// Удаляет компоненты, для которых predicate вернул true (истёкшие статусы);
+		// возвращает число удалённых
+		size_t removeIf(const std::function<bool(const IComponent&)>& predicate);
 
 		template <class T>
 		bool remove()
