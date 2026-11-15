@@ -464,8 +464,9 @@ struct HunterSpec {
 };
 
 // Проверяет статы > 0 и range >= 2; возвращает ВСЕ найденные ошибки,
-// без номеров строк (их добавляет App)
-Result<Unit> makeHunter(const HunterSpec& s) {
+// без номеров строк (их добавляет App). Заявка на спавн несёт id, позицию и
+// занятость клетки и тогда, когда юнит не собрался, — SetupContext проверит и их.
+SpawnRequest makeHunter(const HunterSpec& s) {
     Diagnostics errors;
     requirePositive(errors, "hp", s.hp);
     requirePositive(errors, "agility", s.agility);
@@ -473,16 +474,16 @@ Result<Unit> makeHunter(const HunterSpec& s) {
     if (s.range < 2)
         errors.add("hunter.invalid_range", "range must be >= 2, got " + std::to_string(s.range));
     if (!errors.empty())
-        return errors;
+        return {s.id, s.pos, /*occupiesCell*/ true, errors};
 
-    return UnitBuilder(s.id, "Hunter", s.pos)          // occupiesCell = true по умолчанию
+    return {s.id, s.pos, true, UnitBuilder(s.id, "Hunter", s.pos)   // occupiesCell = true по умолчанию
         .with<Health>(s.hp).with<Agility>(s.agility).with<Strength>(s.strength)
         .with<Range>(s.range)
         .with<Movement>(/*speed*/ 1)
         .action<RangedAttack>(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})
         .action<MeleeAttack>(stat<Strength>)
         .action<MarchStep>()
-        .build();                                       // проверка требований действий
+        .build()};                                      // проверка требований действий
 }
 ```
 
@@ -520,7 +521,7 @@ SW_REGISTER_BINDING(bindHunter);
 
 **Мина по тикам.**
 - Тик N, Main: `MineFuse` через `ctx.query()` видит юнита на расстоянии 0…2
-  (включая летающих) → мина взводится и ставит взрыв в `ctx.scheduler()` на тик N+1.
+  (включая летающих) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1.
   Это выполненное действие. Взведённая мина больше не действует.
 - Тик N+1, Scheduled: взрыв. `targeting().select(mine, attack({area, explosion}, {0,3}))` →
   `effects().apply` каждой цели (включая летающих: правило `Flying` не трогает `area`) → `UNIT_ATTACKED` с
@@ -541,7 +542,7 @@ amount), лечение всё равно считается выполненн�
 
 1. `IO/Commands/SpawnX.hpp` — DTO команды (формат ввода).
 2. `Features/Units/X.{hpp,cpp}` — `XSpec`, его проверка и сборка юнита
-   (`Result<Unit> makeX(const XSpec&)`); при необходимости новые статы, действия,
+   (`SpawnRequest makeX(const XSpec&)`); при необходимости новые статы, действия,
    теги, статусы в `Features/Common` или рядом с юнитом.
 3. `App/Bindings/XBinding.cpp` — перевод `io::SpawnX` → `XSpec`, без логики,
    в конце файла `SW_REGISTER_BINDING(bindX);`.

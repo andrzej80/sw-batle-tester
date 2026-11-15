@@ -527,17 +527,28 @@ for tick = 2 …:
 ## 7. Core / Setup
 
 ```cpp
+struct SpawnRequest {          // фабрика юнита знает это всегда, даже при неверных статах
+    UnitId id; Position position; bool occupiesCell;
+    Result<Unit> unit;         // собранный юнит или ошибки фабрики
+};
+
 class SetupContext {
 public:
     Result<void> createMap(int64_t width, int64_t height);
-    Result<void> spawn(Result<Unit> unit);           // ошибки фабрики пробрасываются
+    Result<void> spawn(SpawnRequest request);        // ошибки фабрики пробрасываются
     Result<void> orderMarch(UnitId, Position target);
+    Result<void> finish();                           // конец сценария: не было CREATE_MAP
+    World* world();                                  // nullptr — карта не создана
 };
 ```
 
+- Фабрика юнита возвращает `SpawnRequest`, а не только `Result<Unit>`: по id, позиции и
+  занятости клетки проверки идут и тогда, когда юнит не собрался. Без этого у спавна с
+  плохими статами и занятой клеткой нельзя было бы показать обе ошибки.
+
 | Метод | Проверки (код ошибки) |
 |---|---|
-| `createMap` | повторно — `map.already_created`; W или H = 0 — `map.invalid_size` |
+| `createMap` | повторно (даже если первая команда была с ошибкой) — `map.already_created`; W или H = 0 — `map.invalid_size` |
 | `spawn` | ошибки фабрики как есть; нет карты — `map.not_created` (один раз за сценарий); id занят — `unit.duplicate_id` (relatedUnit = id); вне карты — `unit.out_of_bounds`; клетка занята — `unit.cell_occupied` (relatedUnit = занявший) |
 | `orderMarch` | id отклонённого спавна — без ошибки (п. 0.4); нет юнита — `march.unit_not_found`; нет `Movement` — `march.unit_cannot_move`; цель вне карты — `march.out_of_bounds`; цель совпадает с концом очереди (или позицией, если очередь пуста) — `march.same_position` |
 
@@ -545,6 +556,13 @@ public:
   `MarchStarted` сразу (тик 1), следующие только встают в очередь.
 - Все проверки одного вызова собираются вместе (у `spawn` с плохими статами и
   занятой клеткой — обе ошибки).
+- **Последствия неудачного `CREATE_MAP`** (согласовано): если команда `CREATE_MAP` была,
+  но с ошибкой, команды, которым нужна карта, `map.not_created` не дают — первопричина
+  уже в списке. Юниты при этом отклоняются молча, но ошибки их статов выводятся.
+- Повторный id при спавне принадлежит уже стоящему юниту, поэтому `MARCH` на этот id
+  относится к первому юниту и проверяется как обычно.
+- Ошибки `march.*` про существующего юнита несут `relatedUnit`: App добавит строку его
+  спавна.
 
 ## 8. IO
 
