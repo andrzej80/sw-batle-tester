@@ -88,6 +88,13 @@ namespace sw::core
 			return _components.contains(type);
 		}
 
+		// Компонент по типу, известному только во время выполнения; нет — nullptr
+		IComponent* find(std::type_index type)
+		{
+			const auto found = _components.find(type);
+			return found == _components.end() ? nullptr : found->second.get();
+		}
+
 		const std::vector<const ITargetRule*>& targetRules() const
 		{
 			return _targetRules;

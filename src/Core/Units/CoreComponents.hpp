@@ -33,6 +33,13 @@ namespace sw::core
 		std::deque<Position> marches;  // очередь целей; первая — активный марш
 	};
 
+	// Что делать при повторном наложении статуса того же типа
+	enum class Reapply
+	{
+		Replace,  // новый экземпляр заменяет старый
+		Keep,  // остаётся старый (он мог обновить себя в onReapplied), новый отбрасывается
+	};
+
 	// База статусов: компонент со сроком жизни (горение, щит). Истёкший статус снимается
 	// в фазе Cleanup. Конкретные статусы — в Features.
 	class Status : public IComponent
@@ -49,6 +56,20 @@ namespace sw::core
 		bool isExpired(Tick now) const
 		{
 			return _expiresAt.has_value() && *_expiresAt <= now;
+		}
+
+		// Статус того же типа наложили повторно. Решает сам статус: по умолчанию новый
+		// заменяет старый (обновляются срок и параметры). Переопределение может продлить
+		// срок или сложить стаки — изменить себя и вернуть Keep.
+		virtual Reapply onReapplied(const Status& /*incoming*/)
+		{
+			return Reapply::Replace;
+		}
+
+	protected:
+		void setExpiresAt(std::optional<Tick> expiresAt)
+		{
+			_expiresAt = expiresAt;
 		}
 
 	private:

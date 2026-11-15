@@ -362,6 +362,10 @@ struct Hit {
 };
 ```
 
+- У `TargetSpec` нет конструктора по умолчанию: без него `TargetSpec{}` молча дал бы
+  первые значения `Intent` и `Effect`, а автор действия обязан выбрать оба.
+- Файлы: `Core/Interaction/TargetSpec.hpp` (`Intent`, `Effect`, `TargetSpec`, `Hit`).
+
 ### 5.2 Targeting
 
 ```cpp
@@ -380,16 +384,31 @@ public:
    `nullopt` — пропустить;
 4. оставить, если `range.contains(chebyshev(source, target))` и `filter` пропускает.
 
+Шаги 1–4 для одной цели — `canTarget(source, target, spec)`; им же пользуется
+`applyStatus`.
+
 ### 5.3 Interaction
 
 ```cpp
 class Interaction {
 public:
-    void apply(Hit hit);                               // урон или лечение
-    bool applyStatus(const Unit& source, UnitId target, const TargetSpec& spec,
-                     std::unique_ptr<Status> status);  // false — правила цели запретили
+    void apply(const Hit& hit);                         // урон или лечение
+    bool applyStatus(const Unit& source, const Unit& target, const TargetSpec& spec,
+                     std::unique_ptr<Status> status);   // false — правила цели запретили
 };
 ```
+
+- Цель `apply` обязана быть выбрана через `Targeting`: нет цели, она мертва или у неё
+  нет `Health` — `std::logic_error`. Отрицательный `amount` и `Effect::Status` в
+  `apply` — тоже `std::logic_error`.
+- **Повторное наложение статуса** (согласовано): если у цели уже есть статус того же
+  типа, решает он сам — `Status::onReapplied(incoming)`:
+  - `Reapply::Replace` (по умолчанию) — новый экземпляр заменяет старый: обновляются
+    срок и параметры; в индексе хуков он встаёт в конец;
+  - `Reapply::Keep` — остаётся старый (он мог изменить себя: продлить срок через
+    `setExpiresAt`, добавить стак), новый отбрасывается.
+
+  В обоих случаях `applyStatus` возвращает `true` и отмечает изменение мира.
 
 `apply`:
 1. модификаторы цели по возрастанию `priority()`, при равенстве — в порядке

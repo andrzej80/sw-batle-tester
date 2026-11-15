@@ -3,6 +3,7 @@
 #include <Core/Units/CoreComponents.hpp>
 #include <Core/Units/Unit.hpp>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -15,6 +16,7 @@ namespace sw::test
 		core::Position position;
 		bool occupiesCell = true;
 		std::optional<int64_t> hp = 10;	 // nullopt — юнит без Health, как мина
+		std::function<void(core::ComponentStore&)> components = {};	 // дополнительные компоненты
 	};
 
 	inline core::Unit makeUnit(const TestUnit& description)
@@ -27,6 +29,10 @@ namespace sw::test
 		if (description.hp)
 		{
 			blueprint.components.add<core::Health>(*description.hp);
+		}
+		if (description.components)
+		{
+			description.components(blueprint.components);
 		}
 		return core::Unit(std::move(blueprint));
 	}
