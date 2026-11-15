@@ -604,6 +604,15 @@ public:
 - Не хватает токенов — `parse.missing_argument` с именем первого отсутствующего поля;
   лишние — `parse.extra_argument`.
 - Строка с ошибкой разбора в handler не передаётся.
+- В строке выводится только первая ошибка поля: после неё позиция в строке уже не
+  совпадает с полями, следующие ошибки были бы последствиями. Ошибки разных строк
+  собираются все.
+- У `parse.unknown_command` поле `command` пустое. Тексты: `unknown command 'X'`,
+  `missing argument 'range'`, `unexpected extra argument '4'`,
+  `hp: expected non-negative integer, got "-5"`, `width: value exceeds 4294967295, got …`.
+- Строки из одних пробелов пропускаются; лишние пробелы и табуляция между аргументами и
+  окончания строк Windows (`\r\n`) допустимы.
+- Разбор числа — `IO/System/ParseNumber.hpp` (`parseUInt32`), его же проверяют тесты.
 
 ### 8.2 EventLog
 
