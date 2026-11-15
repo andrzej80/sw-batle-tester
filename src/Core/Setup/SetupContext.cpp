@@ -116,7 +116,7 @@ namespace sw::core
 				errors.add(
 					"unit.cell_occupied",
 					"cell " + describe(request.position) + " is occupied by " + unitName(*occupant),
-					*occupant);
+					occupant);
 			}
 		}
 
