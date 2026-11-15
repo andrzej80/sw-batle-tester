@@ -654,16 +654,26 @@ UnitBuilder& occupiesCell(bool);
 UnitBuilder& tag(Tag);
 template <class C, class... A> UnitBuilder& with(A&&...);
 template <class Act, class... A> UnitBuilder& action(A&&...);
-Unit build();   // проверка requirements → logic_error со списком недостающего
+Unit build();                                  // проверка requirements → logic_error со списком недостающего
+SpawnRequest spawnRequest();                   // заявка на спавн собранного юнита
+SpawnRequest reject(Diagnostics errors) const; // заявка с ошибками фабрики (п. 7)
 ```
+
+- `requirePositive(errors, name, value)` — `unit.invalid_stat` «hp must be positive, got 0».
+- Числа для действий — `ValueSource`: константа или `stat<T>`; `distance(min, max)` —
+  `Distance` из двух `ValueSource`. Файлы: `Features/Common/CommonTags`, `TargetSpecs`,
+  `Stats`, `ValueSource`, `UnitBuilder`, `Attacks`.
 
 ### 9.2 Действия
 
 | Действие | Поведение |
 |---|---|
-| `MeleeAttack(stat<T>)` | цели — `select(self, attack({melee, physical}, {1,1}))`; нет — `false`; иначе случайная, `apply(Hit{…, amount = T})`, `true` |
-| `RangedAttack(stat<T>, distance(min, max), precondition?)` | если `precondition` не выполнено — `false`; дистанция вычисляется из `distance`; цели — `attack({ranged, physical}, дистанция)`; дальше как `MeleeAttack` |
+| `MeleeAttack(stat<T>)` | цели — `select(self, attack({melee, physical}, {1,1}))`; нет — `false`; иначе случайная, `apply(Hit{…, amount = max(0, T)})`, `true` |
+| `RangedAttack(stat<T>, distance(min, max), condition?)` | если `condition` не выполнено — `false`; дистанция вычисляется из `distance`; цели — `attack({ranged, physical}, дистанция)`; дальше как `MeleeAttack` |
 | `RequireNoAdjacentOccupying` | `false`, если среди `neighbours(self)` есть живой юнит с `occupiesCell` |
+
+- **Отрицательный стат урона** (согласовано): если характеристика урона ниже нуля
+  (будущий дебафф), удар всё равно происходит — с уроном 0, действие выполнено.
 
 ### 9.3 Юниты
 
