@@ -10,14 +10,14 @@ namespace sw::core
 {
 	// Против цели или в её пользу. Ось не растёт: на ней держатся правила вроде
 	// «ближняя атака по Ворону запрещена» (ARCHITECTURE.md, п. 4.9).
-	enum class Intent
+	enum class Intent : std::uint8_t
 	{
 		Hostile,
 		Beneficial,
 	};
 
 	// Что меняется у цели. Новая операция (сбивание баффа, отбрасывание) — новое значение.
-	enum class Effect
+	enum class Effect : std::uint8_t
 	{
 		Damage,
 		Heal,

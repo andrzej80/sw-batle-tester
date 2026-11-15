@@ -34,7 +34,7 @@ namespace sw::core
 	};
 
 	// Что делать при повторном наложении статуса того же типа
-	enum class Reapply
+	enum class Reapply : std::uint8_t
 	{
 		Replace,  // новый экземпляр заменяет старый
 		Keep,  // остаётся старый (он мог обновить себя в onReapplied), новый отбрасывается

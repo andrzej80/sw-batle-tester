@@ -6,6 +6,7 @@
 #include <Core/Common/Types.hpp>
 #include <Core/Interaction/Interaction.hpp>
 #include <Core/Interaction/Targeting.hpp>
+#include <cstdint>
 #include <optional>
 
 namespace sw::core
@@ -14,7 +15,7 @@ namespace sw::core
 	class IRandom;
 	class World;
 
-	enum class StopReason
+	enum class StopReason : std::uint8_t
 	{
 		OneOrNoUnitsLeft,  // на карте ≤ 1 юнита
 		NothingHappened,   // тик пустой и отложенных эффектов нет
