@@ -688,6 +688,16 @@ SpawnRequest reject(Diagnostics errors) const; // заявка с ошибкам
 же объект `distance(2, stat<Range>)` на юнитах с разным `Range` даёт разные
 дистанции — значение не зафиксировано при сборке.
 
+- Фабрики — `SpawnRequest makeSwordsman(const SwordsmanSpec&)` и
+  `SpawnRequest makeHunter(const HunterSpec&)` (`Features/Units`); тип юнита в
+  `UNIT_SPAWNED` — `Swordsman` и `Hunter`.
+- `range` проверяется только правилом `hunter.invalid_range`: `range = 0` даёт одну эту
+  ошибку, а не ещё и `unit.invalid_stat`.
+- Тест `ExampleScenario_plays_by_the_rules_with_real_units` прогоняет
+  `commands_example.txt` через `SetupContext` и `Simulation`: тики 1–6 совпадают с логом
+  исходного `main.cpp`, с тика 7 — расхождение из-за выстрела на дистанцию 5 в исходном
+  логе (KNOWN_ISSUES.md, п. 4).
+
 ## 10. App
 
 ### 10.1 Application
