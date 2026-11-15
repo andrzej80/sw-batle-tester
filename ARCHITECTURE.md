@@ -1,6 +1,7 @@
 # Архитектура симуляции
 
-Статус: **черновик на утверждение**. Код по этому документу ещё не написан.
+Статус: **утверждена**. Код по этому документу ещё не написан. Поведение модулей —
+в [SPECIFICATION.md](SPECIFICATION.md), деление на задачи — в [TASKS.md](TASKS.md).
 
 ## 1. Цели и ограничения
 
@@ -44,6 +45,14 @@ main ──► App ──────┬─────────────�
     Core/Features в `io::Events`, а `App/Output/EventBridge` передаёт их в `EventLog`.
 - Адаптер — 5–10 строк без логики. Логика (проверки, сборка юнита) в адаптер
   не попадает.
+- **Типы чисел меняются на той же границе.** `uint32_t` — только в IO: это формат
+  файла и вывода. В Core и Features все величины — `int64_t` (координаты, HP, статы,
+  урон, дистанции), беззнаковые — только для того, с чем не считают (`UnitId`,
+  `Tick`, счётчики). Беззнаковый тип не гарантирует неотрицательность, а маскирует
+  ошибку: `0 - 1` даёт 4294967295. Неотрицательность — инвариант, его проверяют
+  валидация и исключения. Переводы `uint32_t ↔ int64_t` — только в `App/Bindings`
+  (расширение без потерь) и `App/Output` (сужение с проверкой). Подробности — в
+  SPECIFICATION.md, п. 1.4 и 10.5.
 - **Общих списков, которые правят все, нет.** Адаптеры регистрируются сами,
   в своём файле (п. 5.4), а теги объявляются там, где нужны (п. 4.9). Это
   убирает постоянные merge-конфликты при параллельной работе.
@@ -71,7 +80,7 @@ src/
     System/CommandParser            — парсер, собирающий ошибки вместо исключений
     System/EventLog
   Core/
-    Common/       Types (UnitId, Tick, Position), Distance (Чебышёв), Range,
+    Common/       Types (UnitId, Tick, Position), Distance (Чебышёв), DistanceRange,
                   Result, Diagnostic, Tag/TagSet
     Map/          Map (размер, занятость клеток), IMoveCostModifier, IEnterTrigger
     Units/        Unit, хранилище компонентов, Health, Movement, Status,
@@ -158,8 +167,13 @@ public:
 Если ни одно не выполнилось, юнит в этом тике бездействует.
 
 Действия параметризуются, а не дублируются:
-`MeleeAttack(stat<Strength>)`, `MeleeAttack(stat<Agility>)`, `RangedAttack(stat<Power>, {2,5})`.
+`MeleeAttack(stat<Strength>)`, `MeleeAttack(stat<Agility>)`,
+`RangedAttack(stat<Power>, distance(2, 5))`, `RangedAttack(stat<Agility>, distance(2, stat<Range>))`.
 `stat<T>` сам объявляет требование компонента `T`.
+
+Значения статов читаются **в момент выполнения действия**, а не при сборке юнита.
+Поэтому эффект, который меняет стат (бафф дальности стрелков, проклятие силы),
+сразу влияет на действие, а параметры действий менять не нужно.
 
 **Проверка компонентов при сборке.** `UnitBuilder::build` собирает требования всех
 действий и проверяет, что у юнита есть нужные компоненты. Если `MeleeAttack(stat<Strength>)`
@@ -236,7 +250,9 @@ public:
 - каждый изменяющий метод фасадов `TurnContext` увеличивает счётчик изменений.
 
 Счётчик изменений заодно проверяет контракт `IAction`: если действие вернуло
-`false`, а счётчик вырос, в отладочной сборке это `std::logic_error`.
+`false`, а счётчик вырос, это `std::logic_error`. Проверка включена всегда, а не
+только в отладочной сборке: это сравнение двух чисел, отключать её незачем, а
+нарушение контракта в релизе тихо ломало бы правило «пустого тика».
 
 ### 4.7 Движение и марш
 
@@ -245,10 +261,13 @@ public:
 - `Movement { speed; deque<Position> marches; }`. Повторный `MARCH` встаёт в очередь.
 - `MARCH_STARTED` публикуется, когда марш становится активным: первый — в тике 1,
   следующие — сразу после `MARCH_ENDED` предыдущего, в том же тике.
-- Шаг: в любую из 8 соседних клеток, которая уменьшает расстояние до цели и свободна
+- Шаг: в одну из 8 соседних клеток, которая уменьшает расстояние до цели и свободна
   для этого юнита. Для юнита с `occupiesCell` клетка должна быть не занята, в том
-  числе мёртвым до уборки; юниты без `occupiesCell` занятость игнорируют. Если
-  подходящих клеток несколько — случайная. Если нет — `MarchStep` возвращает `false`.
+  числе мёртвым до уборки; юниты без `occupiesCell` занятость игнорируют.
+  - Сначала — прямой шаг `(sign(dx), sign(dy))`, если эта клетка подходит. Так
+    движение предсказуемо: юнит идёт к цели по прямой, а не случайным зигзагом.
+  - Если прямая клетка не подходит — случайная из остальных подходящих (обход).
+  - Если подходящих нет — `MarchStep` возвращает `false`.
 - За ход юнит тратит бюджет `speed`; стоимость входа в клетку дают
   `IMoveCostModifier` клетки (по умолчанию 1). Первый шаг за ход разрешён всегда,
   чтобы дорогая клетка не заблокировала юнита навсегда. На каждую клетку — `UNIT_MOVED`.
@@ -295,7 +314,7 @@ struct TargetSpec {
     Intent intent;   // обязательные поля без значений по умолчанию:
     Effect effect;   // автор действия обязан выбрать оба
     TagSet tags;     // способ доставки + тип воздействия
-    Range  range;
+    DistanceRange range;
 };
 ```
 
@@ -313,10 +332,10 @@ struct TargetSpec {
   `Features/Common/TargetSpecs` — те же четыре слова, но оси остаются раздельными:
 
   ```cpp
-  TargetSpec attack(TagSet tags, Range r) { return {Intent::Hostile,    Effect::Damage, tags, r}; }
-  TargetSpec heal  (TagSet tags, Range r) { return {Intent::Beneficial, Effect::Heal,   tags, r}; }
-  TargetSpec buff  (TagSet tags, Range r) { return {Intent::Beneficial, Effect::Status, tags, r}; }
-  TargetSpec debuff(TagSet tags, Range r) { return {Intent::Hostile,    Effect::Status, tags, r}; }
+  TargetSpec attack(TagSet tags, DistanceRange r) { return {Intent::Hostile,    Effect::Damage, tags, r}; }
+  TargetSpec heal  (TagSet tags, DistanceRange r) { return {Intent::Beneficial, Effect::Heal,   tags, r}; }
+  TargetSpec buff  (TagSet tags, DistanceRange r) { return {Intent::Beneficial, Effect::Status, tags, r}; }
+  TargetSpec debuff(TagSet tags, DistanceRange r) { return {Intent::Hostile,    Effect::Status, tags, r}; }
   ```
 
 Теги Core не знает — у него есть только механизм `Tag`/`TagSet`; теги объявляют Features.
@@ -346,7 +365,7 @@ class ITargetRule {
 public:
     virtual ~ITargetRule() = default;
     // nullopt — эту цель таким способом выбрать нельзя
-    virtual std::optional<Range> adjust(const TargetSpec& incoming, Range range) const = 0;
+    virtual std::optional<DistanceRange> adjust(const TargetSpec& incoming, DistanceRange range) const = 0;
 };
 
 class IHitModifier {
@@ -361,11 +380,11 @@ public:
 Пример — правило цели Ворона:
 
 ```cpp
-std::optional<Range> Flying::adjust(const TargetSpec& in, Range r) const {
+std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange r) const {
     if (in.intent != Intent::Hostile) return r;             // лечение и баффы — без изменений
     if (in.tags.has(tags::Melee))     return std::nullopt;  // ближняя атака запрещена
-    if (in.tags.has(tags::Ranged))    return r.shifted(-1); // дистанция стрелка: {2,R} → {1,R-1}
-    return r;                                               // взрыв (area) — без изменений
+    if (in.tags.has(tags::Ranged))    return r.shifted(-1, -1); // обе границы: {2,R} → {1,R-1}
+    return r;                                                   // взрыв (area) — без изменений
 }
 ```
 
@@ -416,7 +435,7 @@ std::optional<Range> Flying::adjust(const TargetSpec& in, Range r) const {
 
 | Интерфейс | Контракт |
 |---|---|
-| `IAction::tryExecute` | `false` — не вызывал изменяющих методов `TurnContext` (проверяется в отладочной сборке, п. 4.6). `true` — действие выполнено, даже если эффект равен 0 |
+| `IAction::tryExecute` | `false` — не вызывал изменяющих методов `TurnContext` (проверяется всегда, п. 4.6). `true` — действие выполнено, даже если эффект равен 0 |
 | `IAction::requirements` | перечисляет все компоненты, которые действие читает у `self`; проверяется в `UnitBuilder::build` |
 | `ITargetRule::adjust` | чистая функция без побочных эффектов. Явно проверяет нужную ось: правило про атаки проверяет `intent == Hostile`, а не только теги доставки. Правила цели применяются по очереди в порядке добавления, каждое получает дистанцию после предыдущего; `nullopt` любого правила — запрет |
 | `IHitModifier::modify` | явно проверяет `effect`: резист к `magic` уменьшает только `Damage`, запрет лечения обнуляет только `Heal`. `amount` не становится отрицательным (Core проверяет). Меняет только `Hit` и своё состояние. Применяются по возрастанию `priority()`, при равенстве — в порядке добавления |
@@ -433,7 +452,7 @@ std::optional<Range> Flying::adjust(const TargetSpec& in, Range r) const {
 // Features/Units/Hunter.hpp — ничего не знает про IO
 struct HunterSpec {
     UnitId id; Position pos;
-    uint32_t hp, agility, strength, range;
+    int64_t hp, agility, strength, range;     // в домене числа знаковые (п. 2)
 };
 
 // Проверяет статы > 0 и range >= 2; возвращает ВСЕ найденные ошибки,
@@ -450,8 +469,9 @@ Result<Unit> makeHunter(const HunterSpec& s) {
 
     return UnitBuilder(s.id, "Hunter", s.pos)          // occupiesCell = true по умолчанию
         .with<Health>(s.hp).with<Agility>(s.agility).with<Strength>(s.strength)
+        .with<Range>(s.range)
         .with<Movement>(/*speed*/ 1)
-        .action<RangedAttack>(stat<Agility>, Range{2, s.range}, RequireNoAdjacentOccupying{})
+        .action<RangedAttack>(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})
         .action<MeleeAttack>(stat<Strength>)
         .action<MarchStep>()
         .build();                                       // проверка требований действий
@@ -476,7 +496,8 @@ SW_REGISTER_BINDING(bindHunter);
 у них одна — «что такое этот юнит», а разделение дало бы два файла на юнит без выгоды.
 
 - `MeleeAttack` — `attack({melee, physical}, {1,1})`.
-- `RangedAttack` — `attack({ranged, physical}, {min, max})`.
+- `RangedAttack` — `attack({ranged, physical}, дистанция)`; дистанция вычисляется
+  при каждом выстреле из `distance(min, max)`, где граница — число или `stat<T>`.
 - `RequireNoAdjacentOccupying` — выстрел запрещён, если в соседних клетках есть
   живой юнит с `occupiesCell`. Летающие, мины и мёртвые (до уборки) не мешают.
 
@@ -484,7 +505,7 @@ SW_REGISTER_BINDING(bindHunter);
 
 | Юнит | Сборка (всё в Features) |
 |---|---|
-| **Башня** | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, {2,5})`. `MARCH` на неё — ошибка валидации |
+| **Башня** | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, distance(2, 5))`. `MARCH` на неё — ошибка валидации |
 | **Лекарь** | `Health`, `Spirit`, `Movement(1)`; `Heal(stat<Spirit>)` с `heal({heal}, {0,2})`, `MarchStep` |
 | **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)`, `MarchStep` |
 | **Мина** | `occupiesCell(false)`, без `Health` (поэтому не бывает целью, п. 4.9), без `Movement` (статична, `MARCH` на неё — ошибка валидации); `MineFuse(power, trigger 2, blast 3)` |
@@ -662,6 +683,11 @@ error: scenario.txt:11: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2,
   `Intent::Hostile`, поэтому лечение и баффы Ворона не затрагивают. Намерение
   (`Intent`) и операция (`Effect`) — две раздельные оси, а не один enum
   `{Attack, Heal, Buff, Debuff}`.
+- Числа в домене знаковые (`int64_t`), `uint32_t` остаётся только в IO; переводы —
+  в App. Карта хранит занятость разреженно: формат допускает карту до
+  4294967295 × 4294967295, лимит размера не вводится.
+- Решения уровня поведения модулей (кто может быть целью, движение за тик, ошибки-
+  последствия, пустой сценарий и др.) — в [SPECIFICATION.md](SPECIFICATION.md), раздел 0.
 
 ## 9. Открытые вопросы
 
