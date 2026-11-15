@@ -217,18 +217,21 @@ public:
     template <class T> bool has() const;
     template <class T> const T& get() const;     // нет компонента → std::logic_error
     template <class T> const T* tryGet() const;
-
-    const std::vector<ITargetRule*>&  targetRules() const;   // индекс хуков
-    std::vector<IHitModifier*>&       hitModifiers();
+    const ComponentStore& components() const;    // targetRules(), hitModifiers() — индекс хуков
 };
 ```
 
-- Создаётся только через `UnitBuilder` (Features) — у Core есть для этого
-  `UnitBlueprint`, который заполняет билдер.
-- Компоненты хранятся в `std::unordered_map<std::type_index, std::unique_ptr<IComponent>>`;
-  компонент, реализующий `ITargetRule` / `IHitModifier`, при добавлении попадает
-  в индекс хуков.
-- Порядок хуков в индексе — порядок добавления.
+- Создаётся из `UnitBlueprint`, который заполняет `UnitBuilder` (Features).
+- Фичи видят юнита только как `const Unit&`; изменяющие методы (`setPosition`,
+  `requestRemoval`, неконстантные `get`, `behaviour()`) вызывает Core.
+- `isDead()` — по `Health`: HP ≤ 0. Юнит без `Health` не умирает.
+- `ComponentStore`: по одному компоненту каждого типа; второй компонент того же типа —
+  `std::logic_error`. Компонент, реализующий `ITargetRule` / `IHitModifier`, при
+  добавлении попадает в индекс хуков, при удалении — убирается из него. Порядок хуков —
+  порядок добавления. Можно добавить компонент, тип которого известен только во время
+  выполнения (статусы).
+- Интерфейсы `IAction`, `ITargetRule`, `IHitModifier` объявлены здесь же (T04), типы
+  `TargetSpec`, `Hit`, `TurnContext` — объявлены заранее и определяются в T06–T07.
 
 ### 3.2 Компоненты Core
 
@@ -243,17 +246,23 @@ public:
 
 - HP после удара может быть ниже 0 (это и есть смерть); в событиях HP выводится как
   `max(0, current)`. Типы — п. 1.4.
+- `Health(hp)` с hp ≤ 0 и `Movement(speed)` со speed < 1 — `std::logic_error`: такой
+  спавн фабрика юнита обязана отклонить ошибкой ввода раньше.
 
 ### 3.3 ComponentRequirements
 
 ```cpp
 class ComponentRequirements {
 public:
-    template <class T> void require(std::string_view who);   // who = "MeleeAttack"
-    // Проверка: список отсутствующих (компонент, кто требует)
-    std::vector<std::pair<std::string, std::string>> missingIn(const UnitBlueprint&) const;
+    template <class T> void require();
+    std::vector<std::string> missingIn(const ComponentStore&) const;   // имена недостающих
 };
 ```
+
+- Требования проверяет конструктор `Unit`, поэтому проверку не обойти, как бы юнит ни
+  собирался. Недостающие компоненты всех действий — одним `std::logic_error`.
+- Имена действий и компонентов в сообщении — читаемые имена типов (`typeName`,
+  `Core/Common/TypeName`): объявлять свои имена компонентам и действиям не нужно.
 
 **Приёмка:** юнит без `Movement` с `MarchStep` не собирается
 (`std::logic_error`, в тексте — тип юнита, действие и компонент).
