@@ -1,0 +1,19 @@
+# T28. Ворон — M
+
+[← Этап 3](README.md) · спецификация: [Raven.md](../units/Raven.md)
+
+- **Сделать (только новые файлы):**
+  - `src/IO/Commands/SpawnRaven.hpp` — `SPAWN_RAVEN`;
+  - `src/Features/Units/Raven.{hpp,cpp}` — `RavenSpec`, `makeRaven`, правило цели
+    `Flying` (пока им пользуется только Ворон, лежит рядом с ним);
+  - `src/App/Bindings/RavenBinding.cpp` — `io::SpawnRaven` → `RavenSpec`,
+    `SW_REGISTER_BINDING`.
+- **Зависит от:** [T25](T25-melee-distance.md) — дистанция `{0,1}` у `MeleeAttack`.
+- **Тесты:** раздел «Приёмка» в [Raven.md](../units/Raven.md), кроме пунктов с пометкой
+  (T30). `Flying::adjust` — отдельным табличным тестом на все четыре случая.
+- **Сценарий** `tests/scenarios/raven`: Ворон долетает до Мечника за вдвое меньшее число
+  тиков и бьёт его; Мечник Ворона не бьёт.
+- **Изменения спецификации:** в Raven.md — уточнения, найденные при реализации;
+  основная SPECIFICATION.md не меняется.
+- **Готово:** `git diff main -- src/Core` пуст, существующие файлы `src/` не изменены,
+  эталоны прежних сценариев не изменены.
