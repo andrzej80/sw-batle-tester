@@ -26,6 +26,18 @@ namespace
 	}
 }
 
+TEST(UnitStore_gives_mutable_access_only_to_its_own_units)
+{
+	World world(10, 10);
+	const Unit& placed = world.place(makeUnit({.id = 1, .position = {3, 3}}));
+	const Unit stranger = makeUnit({.id = 2, .position = {4, 4}});
+	const Unit twin = makeUnit({.id = 1, .position = {5, 5}});
+
+	CHECK(&world.units().mutableOf(placed) == &placed);
+	CHECK_THROWS(world.units().mutableOf(stranger), std::logic_error);
+	CHECK_THROWS(world.units().mutableOf(twin), std::logic_error);
+}
+
 TEST(World_place_respects_cell_occupancy)
 {
 	World world(10, 10);

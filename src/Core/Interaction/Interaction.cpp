@@ -109,8 +109,7 @@ namespace sw::core
 			return false;
 		}
 
-		Unit* mutableTarget = _world.units().find(target.id());
-		ComponentStore& components = mutableTarget->components();
+		ComponentStore& components = _world.units().mutableOf(target).components();
 		const Status& incoming = *status;
 		const std::type_index type(typeid(incoming));
 		if (auto* existing = dynamic_cast<Status*>(components.find(type)))

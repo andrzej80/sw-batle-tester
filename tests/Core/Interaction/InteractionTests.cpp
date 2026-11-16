@@ -238,6 +238,11 @@ TEST(Interaction_status_respects_target_rules)
 	CHECK(!immune.has<Burning>());
 	CHECK(!arena.interaction.applyStatus(source, farAway, debuff({1, 1}), std::make_unique<Burning>(5)));
 
+	const Unit ghost = makeUnit({.id = 5, .position = {6, 6}});
+	CHECK_THROWS(
+		static_cast<void>(arena.interaction.applyStatus(source, ghost, debuff({1, 1}), std::make_unique<Burning>(5))),
+		std::logic_error);
+
 	const sw::core::TargetSpec notAStatus = meleeAttack();
 	CHECK_THROWS(
 		static_cast<void>(arena.interaction.applyStatus(source, farAway, notAStatus, std::make_unique<Burning>(5))),

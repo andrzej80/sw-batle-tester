@@ -30,6 +30,16 @@ namespace sw::core
 		return found == _index.end() ? nullptr : found->second;
 	}
 
+	Unit& UnitStore::mutableOf(const Unit& unit)
+	{
+		Unit* found = find(unit.id());
+		if (found == nullptr || found != &unit)
+		{
+			throw std::logic_error("UnitStore: unit " + std::to_string(unit.id().value) + " is not in the world");
+		}
+		return *found;
+	}
+
 	std::vector<UnitId> UnitStore::orderedIds() const
 	{
 		std::vector<UnitId> ids;

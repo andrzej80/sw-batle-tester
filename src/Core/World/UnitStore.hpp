@@ -19,6 +19,10 @@ namespace sw::core
 		Unit* find(UnitId id);
 		const Unit* find(UnitId id) const;
 
+		// Изменяемый доступ к юниту, полученному по const-ссылке; юнит обязан лежать в
+		// этом хранилище, иначе std::logic_error
+		Unit& mutableOf(const Unit& unit);
+
 		std::vector<UnitId> orderedIds() const;
 
 		std::vector<const Unit*> ordered() const;

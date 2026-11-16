@@ -15,23 +15,13 @@ namespace sw::core
 			_events(events)
 	{}
 
-	Unit& MovementService::mutableUnit(const Unit& unit)
-	{
-		Unit* found = _world.units().find(unit.id());
-		if (found != &unit)
-		{
-			throw std::logic_error("MovementService: unit " + std::to_string(unit.id().value) + " is not in the world");
-		}
-		return *found;
-	}
-
 	bool MovementService::stepTo(const Unit& unit, Position cell, TurnContext& context)
 	{
 		if (!unit.has<Movement>() || chebyshev(unit.position(), cell) != 1 || !_world.query().isFreeFor(unit, cell))
 		{
 			return false;
 		}
-		Unit& moving = mutableUnit(unit);
+		Unit& moving = _world.units().mutableOf(unit);
 		if (moving.occupiesCell())
 		{
 			_world.map().release(moving.position(), moving.id());
@@ -46,7 +36,7 @@ namespace sw::core
 
 	void MovementService::addMarch(const Unit& unit, Position target)
 	{
-		Unit& marching = mutableUnit(unit);
+		Unit& marching = _world.units().mutableOf(unit);
 		auto* movement = marching.tryGet<Movement>();
 		if (movement == nullptr)
 		{
@@ -67,7 +57,7 @@ namespace sw::core
 
 	void MovementService::finishMarch(const Unit& unit)
 	{
-		Unit& marching = mutableUnit(unit);
+		Unit& marching = _world.units().mutableOf(unit);
 		auto& movement = marching.get<Movement>();
 		if (movement.marches.empty() || movement.marches.front() != marching.position())
 		{

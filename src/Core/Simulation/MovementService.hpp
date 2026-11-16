@@ -21,8 +21,6 @@ namespace sw::core
 		void finishMarch(const Unit& unit);
 
 	private:
-		Unit& mutableUnit(const Unit& unit);
-
 		World& _world;
 		const EventBus& _events;
 	};

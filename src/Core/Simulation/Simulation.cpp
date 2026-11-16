@@ -110,7 +110,12 @@ namespace sw::core
 		const Tick now = _world.tick();
 		for (const UnitId id : _world.units().orderedIds())
 		{
-			_world.units().find(id)->components().removeIf(
+			Unit* unit = _world.units().find(id);
+			if (unit == nullptr)
+			{
+				continue;
+			}
+			unit->components().removeIf(
 				[now](const IComponent& component)
 				{
 					const auto* status = dynamic_cast<const Status*>(&component);
