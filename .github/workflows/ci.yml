@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Новый пуш в ту же ветку или PR отменяет устаревший прогон.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.cxx }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Минимальная версия из требований задания и свежая версия Ubuntu 24.04.
+          - cxx: clang++-15
+            package: clang-15
+          - cxx: clang++-18
+            package: clang-18
+    steps:
+      # v7 работает на Node.js 24 (v4 — на устаревшем Node.js 20).
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.package }} ninja-build
+          cmake --version
+          ${{ matrix.cxx }} --version
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+
+      # Сборка включает проверку границ слоёв (cmake/CheckLayerBoundaries.cmake).
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run example scenario
+        run: ./build/sw_battle_test commands_example.txt
+
+  # Тесты в сборке с AddressSanitizer и UndefinedBehaviorSanitizer:
+  # выход за границы, use-after-free, утечки, неопределённое поведение.
+  sanitizers:
+    name: Sanitizers (ASan + UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 libclang-rt-18-dev ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_BUILD_TYPE=Debug
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run example scenario
+        run: ./build/sw_battle_test commands_example.txt
+
+  # Статический анализ по .clang-tidy; любое замечание — ошибка.
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 clang-tidy-18 ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Analyze
+        run: run-clang-tidy-18 -p build -quiet "${GITHUB_WORKSPACE}/src/"
+
+  # Единый стиль по .clang-format. Версия зафиксирована: разные версии clang-format
+  # форматируют по-разному. Исправить локально: clang-format-18 -i <файлы>.
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format-18
+
+      - name: Check formatting
+        run: >
+          find src tests \( -name '*.cpp' -o -name '*.hpp' \) -print0
+          | xargs -0 clang-format-18 --dry-run --Werror
+
+  # Одна стабильная проверка для правил защиты ветки: не нужно перечислять
+  # каждое задание и править защиту при изменении состава проверок.
+  tests:
+    name: Tests
+    needs: [build-and-test, sanitizers, clang-tidy, format]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all checks to pass
+        run: |
+          test "${{ needs.build-and-test.result }}" = "success"
+          test "${{ needs.sanitizers.result }}" = "success"
+          test "${{ needs.clang-tidy.result }}" = "success"
+          test "${{ needs.format.result }}" = "success"

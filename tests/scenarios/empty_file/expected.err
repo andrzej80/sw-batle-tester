@@ -1,0 +1,2 @@
+error: scenario.txt: [map.not_created]: the map was never created
+1 error, simulation not started.

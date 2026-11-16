@@ -1,0 +1,2 @@
+error: scenario.txt:1: SPAWN_SWORDSMAN [map.not_created]: the map must be created first
+1 error, simulation not started.

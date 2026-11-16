@@ -1,0 +1,6 @@
+// Охотник стреляет (Agility), пока Мечник далеко, и бьёт из тени (Strength), когда тот
+// рядом и стрелять нельзя.
+CREATE_MAP 10 10
+SPAWN_HUNTER 1 0 0 3 4 1 3
+SPAWN_SWORDSMAN 2 3 0 20 1
+MARCH 2 0 0

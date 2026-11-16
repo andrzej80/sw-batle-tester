@@ -33,6 +33,8 @@
 # Executables
 *.exe
 *.out
+# Эталоны stdout сценарных тестов — не исполняемые файлы
+!tests/scenarios/*/expected.out
 *.app
 
 ### CLion+all ###
@@ -576,3 +578,6 @@ FodyWeavers.xsd
 
 .DS_Store
 .idea
+
+# Каталоги сборки CMake
+/build*/

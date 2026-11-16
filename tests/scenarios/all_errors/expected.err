@@ -1,0 +1,14 @@
+error: scenario.txt:3: CREATE_MAP [map.already_created]: the map is already created
+error: scenario.txt:5: SPAWN_SWORDSMAN [unit.duplicate_id]: unit 1 already exists (unit 1 spawned at line 4)
+error: scenario.txt:6: SPAWN_HUNTER [unit.invalid_stat]: hp must be positive, got 0
+error: scenario.txt:6: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2, got 1
+error: scenario.txt:6: SPAWN_HUNTER [unit.cell_occupied]: cell (0,0) is occupied by unit 1 (unit 1 spawned at line 4)
+error: scenario.txt:7: SPAWN_HUNTER [parse.invalid_number]: agility: expected non-negative integer, got "-5"
+error: scenario.txt:8: SPAWN_SWORDSMAN [unit.out_of_bounds]: position (10,3) is outside the map 10x10
+error: scenario.txt:9: SPAWN_SWORDSMAN [parse.missing_argument]: missing argument 'strength'
+error: scenario.txt:10: MARCH [parse.extra_argument]: unexpected extra argument '4'
+error: scenario.txt:11: MARCH [march.same_position]: unit 1 will already be at (0,0) when this march starts (unit 1 spawned at line 4)
+error: scenario.txt:12: MARCH [march.unit_not_found]: unit 7 does not exist
+error: scenario.txt:13: MARCH [march.out_of_bounds]: target (3,10) is outside the map 10x10 (unit 1 spawned at line 4)
+error: scenario.txt:14: [parse.unknown_command]: unknown command 'SPAWN_DRAGON'
+13 errors, simulation not started.

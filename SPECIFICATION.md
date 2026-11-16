@@ -1,107 +1,75 @@
 # Спецификации модулей
 
-Документ уточняет [ARCHITECTURE.md](ARCHITECTURE.md) до уровня, по которому можно
-писать код и тесты: API модулей, точное поведение, граничные случаи и критерии
-приёмки. Если документы расходятся, архитектура задаёт **устройство**, а этот
-документ — **поведение**. Деление на задачи — в [TASKS.md](TASKS.md).
+Статус: **рабочий документ реализации**, реализовано (T01–T19). Это не первое, что стоит
+читать: устройство — в [ARCHITECTURE.md](ARCHITECTURE.md), решения — в
+[docs/adr](docs/adr/README.md), термины — в [GLOSSARY.md](GLOSSARY.md).
 
-Пространства имён: `sw::core`, `sw::features`, `sw::io`, `sw::app`.
+Здесь — **поведение**: правила, граничные случаи, коды ошибок и критерии приёмки
+(«Приёмка» — то, что обязано быть покрыто тестами). Сигнатур нет: источник правды для
+них — код. Изменения поведения вносятся только после согласования, такие пункты
+помечены «согласовано».
 
 ## 0. Решения, принятые в этом документе
 
-Эти пункты уточняют поведение там, где архитектура его не задавала. Все
-**подтверждены**:
+Уточняют поведение там, где архитектура его не задавала. Все **подтверждены**:
 
-1. **`Targeting` никогда не выбирает источник целью самого себя.** Поэтому правило
-   «Лекарь себя не лечит» выполняется без отдельного фильтра.
-2. **Шаг марша — сначала прямой.** Если свободна клетка `(sign(dx), sign(dy))`,
-   юнит идёт в неё; иначе — случайная из остальных свободных клеток, уменьшающих
-   расстояние. Так движение предсказуемо и похоже на лог из `main.cpp`.
-3. **Движение за тик заканчивается на приходе в цель.** Остаток бюджета `speed`
-   не переносится на следующий марш из очереди; следующий марш стартует в том же
-   тике (`MARCH_STARTED`), а идти начинает со следующего.
+1. **`Targeting` никогда не выбирает источник целью самого себя.** Поэтому «Лекарь
+   себя не лечит» выполняется без отдельного фильтра.
+2. **Шаг марша — сначала прямой.** Если свободна клетка `(sign(dx), sign(dy))`, юнит
+   идёт в неё; иначе — случайная из остальных свободных клеток, уменьшающих расстояние.
+   Так движение предсказуемо и похоже на лог из исходного `main.cpp`.
+3. **Движение за тик заканчивается на приходе в цель.** Оставшиеся шаги `speed` не
+   переносятся на следующий марш из очереди; следующий марш стартует в том же тике
+   (`MARCH_STARTED`), а идти начинает со следующего.
 4. **Ошибки-последствия подавляются.** Если спавн юнита не прошёл проверку, команды
    `MARCH` для этого id ошибок не дают — первопричина уже в списке.
 5. **Пустой сценарий** (нет `CREATE_MAP`) — одна ошибка `map.not_created` без номера строки.
-6. **Конец симуляции проверяется и сразу после установки.** Если после тика 1 на
-   карте ≤ 1 юнита, ходы не начинаются.
-7. **Дальность Охотника — стат-компонент `Range`**, как Strength и Agility. Тип
+6. **Конец симуляции проверяется и сразу после установки.** Если после тика 1 на карте
+   ≤ 1 юнита, ходы не начинаются.
+7. **Дальность Охотника — стат-компонент `Range`**, как `Strength` и `Agility`. Тип
    дистанции в Core называется `DistanceRange`, чтобы не занимать это имя. Границы
-   дистанции действия задаются числом или статом и читаются при каждом выстреле,
-   поэтому будущий бафф дальности не требует менять параметры действия.
+   дистанции читаются при каждом выстреле, поэтому будущий бафф дальности не требует
+   менять параметры действия.
 8. **`Scheduler` принимает эффекты только на будущие тики.** Эффект на текущий или
    прошедший тик — `std::logic_error`.
-9. **Проверка контракта `IAction` включена всегда**, а не только в отладочной сборке:
-   это сравнение двух чисел, отключать её незачем.
+9. **Проверка контракта `IAction` включена всегда**, а не только в отладочной сборке
+   ([ADR 0009](docs/adr/0009-tick-limit-and-action-contract.md)).
 10. **Сдвиг дистанции — пересечение с `[0, ∞)`.** Границы сдвигаются независимо,
     результат пересекается с неотрицательными дистанциями; пустое пересечение —
-    `nullopt`. Ограничение обеих границ нулём отклонено: сильный дебафф давал бы
+    «недосягаемо». Ограничение обеих границ нулём отклонено: сильный дебафф давал бы
     атаку по своей клетке вместо отключения атаки.
-
-Пункты 2, 7 и 9 внесены в ARCHITECTURE.md (п. 4.7, 4.3 и 5.1, 4.6 и 4.13).
 
 ## 1. Core / Common
 
 ### 1.1 Базовые типы
 
-```cpp
-// Идентификатор — обёртка: с id не считают, и его нельзя перепутать с количеством
-struct UnitId { uint32_t value; };                    // ==, !=, <, std::hash
-using Tick = uint64_t;                                // только ++ и сравнение
-
-struct Position { int64_t x; int64_t y; };            // ==, !=, std::hash
-int64_t chebyshev(Position a, Position b);            // max(|dx|, |dy|)
-
-struct DistanceRange {                                // включительно: [min, max]
-    int64_t min; int64_t max;
-    bool contains(int64_t d) const;                   // min <= d <= max
-    bool empty() const;                               // min > max
-    // Новый отрезок [min + minDelta, max + maxDelta] пересекается с [0, ∞).
-    // Пустое пересечение → nullopt (досягаемости не осталось).
-    std::optional<DistanceRange> shifted(int64_t minDelta, int64_t maxDelta) const;
-};
-```
+- `UnitId` — обёртка над `uint32_t`: с id не считают, и его нельзя перепутать с
+  количеством. `Tick` — `uint64_t`, только `++` и сравнение.
+- `Position` — `int64_t x, y`; расстояние — по Чебышёву.
+- `DistanceRange` — отрезок `[min, max]` включительно; `min > max` — пустой.
 
 ### 1.2 Диагностика и Result
 
-```cpp
-struct Diagnostic {
-    std::string code;                    // "unit.duplicate_id"
-    std::string message;                 // "unit id 1 already exists"
-    std::optional<UnitId> relatedUnit;   // App добавит "(unit 1 spawned at line 3)"
-};
-using Diagnostics = std::vector<Diagnostic>;
-
-template <class T> class Result;         // либо T, либо непустые Diagnostics
-template <>        class Result<void>;
-```
-
-- `Result` создаётся из значения или из `Diagnostics`; пустой список ошибок —
-  `std::logic_error`.
-- Доступ к значению при ошибке — `std::logic_error`.
+- Ошибка ввода — `Diagnostic`: код с пространством имён (`unit.duplicate_id`),
+  сообщение и, если ошибка касается существующего юнита, `relatedUnit` — по нему App
+  добавит «(unit 1 spawned at line 3)». Ошибки собираются в `Diagnostics` в порядке
+  обнаружения.
+- `Result<T>` — либо значение, либо непустой список ошибок; пустой список —
+  `std::logic_error`. `Result` — `[[nodiscard]]`.
+- `value()` при ошибке — `std::logic_error`. `errors()` при успехе — пустой список, а не
+  исключение: сбор ошибок может всегда писать `all.append(result.errors())`.
+- У временного `Result` `errors()` возвращает список по значению: иначе
+  `for (const auto& e : make().errors())` обходил бы уничтоженный объект (нашёл ASan).
 
 ### 1.3 Теги
 
-```cpp
-class Tag {                                // интернируется по имени
-public:
-    explicit Tag(std::string_view name);   // одинаковое имя → один и тот же id
-    std::string_view name() const;
-    bool operator==(Tag) const;
-};
-class TagSet {
-public:
-    TagSet(std::initializer_list<Tag>);
-    bool has(Tag) const;
-    bool hasAny(const TagSet&) const;
-};
-```
-
-- Реестр имён — статическая переменная внутри функции; повторная регистрация имени
-  возвращает существующий id.
+- Тег интернируется по имени: одинаковое имя — один и тот же тег, в том числе в разных
+  единицах трансляции; пустое имя — `std::logic_error`. Реестр не потокобезопасен:
+  симуляция однопоточная.
+- `TagSet` — без повторов, равенство не зависит от порядка.
 
 **Приёмка:** `Tag("fire") == Tag("fire")` в разных единицах трансляции;
-для `DistanceRange::shifted`:
+`DistanceRange::shifted(minDelta, maxDelta)`:
 
 | Исходная | Сдвиг | Отрезок после сдвига | Результат (∩ `[0, ∞)`) | Случай |
 |---|---|---|---|---|
@@ -112,51 +80,37 @@ public:
 | `{1,1}` | `(-2, -2)` | `[-1, -1]` | `nullopt` | ни одной неотрицательной дистанции |
 | `{2,4}` | `(+3, 0)` | `[5, 4]` | `nullopt` | отрезок пустой |
 
-`{0,0}` и `nullopt` — разные значения: `{0,0}` — действие достаёт до своей клетки
-(юнитов, не занимающих клетку), `nullopt` — не достаёт ни до кого. Сдвиг никогда
-не создаёт досягаемость, которой не было в сдвинутом отрезке: сильный дебафф
-отключает действие, а не превращает его в удар по своей клетке.
+`{0,0}` — действие достаёт до своей клетки (юнитов, не занимающих клетку), `nullopt` —
+не достаёт ни до кого.
 
 ### 1.4 Типы чисел и арифметика
 
-**Граница проходит по слою: `uint32_t` — только в IO, внутри всё знаковое.**
+**`uint32_t` — только в IO, внутри всё знаковое** (обоснование — ARCHITECTURE.md, п. 2).
 
-| Где | Тип | Почему |
-|---|---|---|
-| IO: DTO команд и событий | `uint32_t` | это формат файла и вывода, он не меняется |
-| Core и Features: координаты, размеры карты, HP, статы, урон, лечение, дистанции, скорость, стоимость шага | `int64_t` | естественная арифметика с минусом (`dx = -1`, сдвиг дистанции, HP ниже 0); любое `uint32_t` помещается без потерь |
-| `UnitId` | обёртка над `uint32_t` | с идентификатором не считают |
-| `Tick`, счётчики (`ActivityTracker`) | `uint64_t` | только `++` и сравнение |
-| размеры контейнеров и индексы | `size_t` | так их возвращает стандартная библиотека; в арифметику домена не смешиваются |
+| Где | Тип |
+|---|---|
+| IO: DTO команд и событий | `uint32_t` — это формат файла и вывода |
+| Core и Features: координаты, размеры карты, HP, статы, урон, лечение, дистанции, скорость | `int64_t` |
+| `UnitId` | обёртка над `uint32_t` |
+| `Tick`, счётчики (`ActivityTracker`) | `uint64_t` |
+| размеры контейнеров и индексы | `size_t`, в арифметику домена не смешиваются |
 
-Правила:
-- В Core и Features нет беззнаковых типов, кроме перечисленных в таблице.
-  Неотрицательность — инвариант, его проверяют валидация и `std::logic_error`
-  в конструкторах, а не тип.
-- Переводы между `uint32_t` и `int64_t` — только в App, ровно в двух местах
-  (п. 10.5): ввод (`App/Bindings`) и вывод (`App/Output`).
-- Сужение `int64_t → uint32_t` — только через `narrow<uint32_t>(int64_t)`: значение
-  вне диапазона — `std::logic_error`. Это баг, а не ошибка ввода: на вход попадают
-  только проверенные `uint32_t`.
-- Координаты соседей считаются в `int64_t`; клетка вне карты отсекается проверкой
-  `Map::contains`, переполнения нет.
+- Неотрицательность — инвариант: её проверяют валидация и `std::logic_error` в
+  конструкторах, а не тип.
+- Переводы `uint32_t ↔ int64_t` — только в App (п. 10.5). Сужение — только через
+  `narrow<uint32_t>`: значение вне диапазона — `std::logic_error` (это баг, на вход
+  попадают только проверенные `uint32_t`).
+- Координаты соседей считаются в `int64_t`; клетка вне карты отсекается проверкой, а
+  не переполнением.
 
-**Приёмка:** `narrow<uint32_t>(-1)` и `narrow<uint32_t>(4294967296)` — исключение;
+**Приёмка:** `narrow<uint32_t>(-1)` и `narrow<uint32_t>(4294967296)` — исключение,
 `narrow<uint32_t>(4294967295)` — 4294967295; сосед клетки `(0,0)` слева не создаётся
 как `(4294967295, 0)`, а отсекается как клетка вне карты.
 
 ## 2. Core / Events
 
-```cpp
-class EventBus {
-public:
-    template <class E> void subscribe(std::function<void(const E&)>);
-    template <class E> void publish(const E&) const;   // синхронно, в порядке подписки
-};
-```
-
-События Core (поля совпадают с `io::Events`, кроме `UnitHealed` — его DTO в IO
-появится вместе с Лекарем):
+События Core (`sw::core::events`; поля совпадают с `io::Events`, кроме `UnitHealed` —
+его DTO в IO появится вместе с Лекарем):
 
 | Событие | Поля |
 |---|---|
@@ -169,271 +123,190 @@ public:
 | `UnitHealed` | healerId, targetId, amount, targetHp |
 | `UnitDied` | unitId |
 
-- Публикация без подписчиков — не ошибка (используется в проходе проверки).
+- `EventBus` доставляет синхронно, в порядке подписки, только подписчикам этого типа.
+- Публикация без подписчиков — не ошибка (так работает проход проверки).
+- Подписчик может публиковать другие события: они доставляются сразу, вложенно.
+- Подписка во время публикации и пустой обработчик — `std::logic_error`.
 
-**Приёмка:** два подписчика вызываются по порядку; событие одного типа не
-доходит до подписчика другого типа.
+**Приёмка:** два подписчика вызываются по порядку; событие одного типа не доходит до
+подписчика другого типа.
 
 ## 3. Core / Units
 
 ### 3.1 Unit
 
-```cpp
-class Unit {
-public:
-    UnitId id() const;
-    std::string_view type() const;     // "Swordsman"
-    Position position() const;         // меняет только MovementService
-    bool occupiesCell() const;
-    const TagSet& tags() const;
-    bool isDead() const;               // HP ≤ 0
-    bool isRemovalRequested() const;
-
-    template <class T> bool has() const;
-    template <class T> const T& get() const;     // нет компонента → std::logic_error
-    template <class T> const T* tryGet() const;
-
-    const std::vector<ITargetRule*>&  targetRules() const;   // индекс хуков
-    std::vector<IHitModifier*>&       hitModifiers();
-};
-```
-
-- Создаётся только через `UnitBuilder` (Features) — у Core есть для этого
-  `UnitBlueprint`, который заполняет билдер.
-- Компоненты хранятся в `std::unordered_map<std::type_index, std::unique_ptr<IComponent>>`;
-  компонент, реализующий `ITargetRule` / `IHitModifier`, при добавлении попадает
-  в индекс хуков.
-- Порядок хуков в индексе — порядок добавления.
+- Юнит собирается из `UnitBlueprint` (его заполняет `UnitBuilder` в Features). Фичи
+  видят юнита только как `const Unit&`; позицию, удаление и поведение меняет Core.
+- `isDead()` — по `Health`: HP ≤ 0. Юнит без `Health` не умирает.
+- `ComponentStore`: по одному компоненту каждого типа, второй того же типа —
+  `std::logic_error`. Правила цели (`ITargetRule`) и статусы при добавлении попадают в
+  свой индекс, при удалении — убираются из него; порядок — порядок добавления.
+  Компонент можно добавить и по типу, известному только во время выполнения (статусы).
+  Ключ — всегда динамический тип объекта, задать его отдельно нельзя. Наследник
+  хранится под своим типом и через `has<База>()` не виден, поэтому статусы и статы
+  объявляются `final`.
 
 ### 3.2 Компоненты Core
 
-```cpp
-struct Health   { int64_t current; int64_t max; };      // max = HP при спавне
-struct Movement { int64_t speed; std::deque<Position> marches; };   // speed ≥ 1
-class  Status : public IComponent {                     // база статусов
-public:
-    explicit Status(std::optional<Tick> expiresAt);     // nullopt — бессрочный
-};
-```
-
-- HP после удара может быть ниже 0 (это и есть смерть); в событиях HP выводится как
-  `max(0, current)`. Типы — п. 1.4.
+- `Health { current, max }`, `max` — HP при спавне. HP после удара может быть ниже 0
+  (это и есть смерть); в событиях выводится `max(0, current)`.
+- `Movement { speed, marches }`, `speed ≥ 1`; первая цель очереди — активный марш.
+- `Status` — срок действия (`expiresAt`, бессрочный — без срока); истёк, когда
+  `expiresAt ≤` текущий тик.
+- `Health(hp)` с hp ≤ 0 и `Movement(speed)` со speed < 1 — `std::logic_error`: такой
+  спавн фабрика обязана отклонить ошибкой ввода раньше.
 
 ### 3.3 ComponentRequirements
 
-```cpp
-class ComponentRequirements {
-public:
-    template <class T> void require(std::string_view who);   // who = "MeleeAttack"
-    // Проверка: список отсутствующих (компонент, кто требует)
-    std::vector<std::pair<std::string, std::string>> missingIn(const UnitBlueprint&) const;
-};
-```
+- Каждое действие объявляет компоненты, которые читает. Требования проверяет
+  конструктор `Unit`, поэтому их не обойти; недостающее всех действий — одним
+  `std::logic_error` с читаемыми именами типов (`typeName`).
 
-**Приёмка:** юнит без `Movement` с `MarchStep` не собирается
-(`std::logic_error`, в тексте — тип юнита, действие и компонент).
+**Приёмка:** юнит без `Movement` с `MarchStep` не собирается (`std::logic_error`, в
+тексте — тип юнита, действие и компонент).
 
 ## 4. Core / Map и World
 
 ### 4.1 Map
 
-```cpp
-class Map {
-public:
-    Map(int64_t width, int64_t height);                // ≤ 0 → std::logic_error
-    bool contains(Position) const;
-    std::optional<UnitId> occupant(Position) const;
-    void occupy(Position, UnitId);                      // занята / вне карты → logic_error
-    void release(Position, UnitId);
-    // Раскладывает свойство по спискам интерфейсов, которые реализует F
-    // (проверка на этапе компиляции: F реализует хотя бы один)
-    template <class F> void addCellFeature(Position, std::shared_ptr<F>);
-    int64_t moveCost(Position, const Unit&) const;      // по умолчанию 1; результат ≥ 1
-    void    triggerEnter(Position, const Unit&, TurnContext&) const;
-};
-```
-
-- Занятость хранят только юниты с `occupiesCell`. Мёртвый держит клетку до Cleanup.
-- **Хранение разреженное:** занятость — `std::unordered_map<Position, UnitId>`,
-  свойства клеток — `std::unordered_map<Position, …>`. Формат допускает карту до
-  4294967295 × 4294967295, плотная сетка такого размера в память не поместится.
-  Ограничение размера карты не вводится: формат его не задаёт.
+- Карта `W × H`, `W, H > 0`. Занятость хранят только юниты с `occupiesCell`; занятие
+  занятой клетки или клетки вне карты — `std::logic_error`.
+- Соседние клетки — внутри карты, в постоянном порядке (по строкам сверху вниз, в
+  строке слева направо).
+- **Хранение разреженное:** формат допускает карту 4294967295 × 4294967295, плотная
+  сетка не поместится в память. Ограничения размера нет: формат его не задаёт.
 
 **Приёмка:** карта `4294967295 × 4294967295` создаётся без выделения памяти под
 клетки; юнит спавнится в её угол `(4294967294, 4294967294)`.
 
 ### 4.2 UnitStore
 
-- Хранит юнитов в порядке создания; `find(UnitId)`, `ordered()` — снимок id.
-- `markDead`, `requestRemoval`, `removePending()` — удаляет мёртвых и помеченных,
-  освобождает клетки, возвращает число удалённых.
+- Юниты хранятся в порядке создания. Отдельной пометки «мёртв» нет: смерть — по
+  `Health`, удаление не через HP — `requestRemoval` (только юниты без `Health`, п. 6.2).
+- Удаление в Cleanup убирает мёртвых и помеченных, освобождает их клетки и не меняет
+  порядок остальных.
+- `World::place` ставит юнита на карту и в хранилище вместе: клетка вне карты, занятая
+  клетка и повторный id — `std::logic_error` (ошибки ввода ловит `SetupContext` раньше).
 
 ### 4.3 SpatialQuery (только чтение)
 
-```cpp
-class SpatialQuery {
-public:
-    // Живые юниты на расстоянии в range от center, в порядке создания
-    std::vector<const Unit*> unitsInRange(Position center, DistanceRange range) const;
-    std::vector<const Unit*> neighbours(Position center) const;   // расстояние 1
-    bool isFreeFor(const Unit&, Position) const;                  // с учётом occupiesCell
-    const Unit* find(UnitId) const;
-    size_t aliveCount() const;   // все юниты на карте, включая мину; мёртвые до Cleanup не считаются
-};
-```
+- «Живой» — не мёртвый и не помеченный на удаление. Запросы «кто на дистанции», «кто
+  рядом», `find` и число живых возвращают только живых, в порядке создания.
+- `isFreeFor(unit, cell)` учитывает и мёртвого: он держит клетку до Cleanup. Для юнита
+  без `occupiesCell` любая клетка карты свободна.
 
 ### 4.4 ActivityTracker
 
-```cpp
-class ActivityTracker {
-public:
-    void beginTick();
-    void markAction(); void markScheduled(); void markRemoval(); void markChange();
-    uint64_t changes() const;     // счётчик изменений — для проверки контракта IAction
-    bool tickWasEmpty() const;    // ни action, ни scheduled, ни removal
-};
-```
+- Считает за тик выполненные действия, отложенные эффекты и удаления — тик без них
+  «пустой» — и общий счётчик изменений мира для проверки контракта `IAction`.
 
-**Приёмка:** спавн на занятую клетку `occupiesCell`-юнитом невозможен, юнитом без
-`occupiesCell` — возможен; `unitsInRange` не возвращает мёртвых; `removePending`
+**Приёмка:** спавн на занятую клетку юнитом с `occupiesCell` невозможен, юнитом без
+неё — возможен; запрос «кто на дистанции» не возвращает мёртвых; удаление
 освобождает клетку.
 
 ## 5. Core / Interaction
 
 ### 5.1 TargetSpec, Hit, интерфейсы
 
-Как в архитектуре (п. 4.9): `Intent`, `Effect`, `TargetSpec`, `ITargetRule`,
-`IHitModifier`.
-
-```cpp
-struct Hit {
-    TargetSpec spec;
-    UnitId     source;
-    UnitId     target;
-    int64_t    amount;   // ≥ 0 на входе и после каждого модификатора
-};
-```
+- Оси `Intent`, `Effect`, теги и дистанция — ARCHITECTURE.md, п. 4.9.
+- У `TargetSpec` нет конструктора по умолчанию: автор действия обязан выбрать и
+  `Intent`, и `Effect`.
+- `Hit` — `TargetSpec`, источник, цель и величина `amount ≥ 0`.
 
 ### 5.2 Targeting
 
-```cpp
-class Targeting {
-public:
-    // Кандидаты в порядке создания; выбор случайного — на стороне действия
-    std::vector<const Unit*> select(const Unit& source, const TargetSpec& spec,
-                                    const std::function<bool(const Unit&)>& filter = {}) const;
-};
-```
+Для каждого юнита на карте:
+1. пропустить источник, мёртвых, помеченных на удаление;
+2. для `Damage` и `Heal` пропустить юнитов без `Health`;
+3. применить правила цели по порядку, каждое получает дистанцию после предыдущего;
+   «недосягаемо» — пропустить;
+4. оставить, если расстояние в дистанции и фильтр действия пропускает.
 
-Алгоритм для каждого юнита на карте:
-1. пропустить: источник, мёртвых, помеченных на удаление;
-2. для `Effect::Damage` / `Effect::Heal` пропустить юнитов без `Health`;
-3. применить правила цели по порядку: `range = rule->adjust(spec, range)`;
-   `nullopt` — пропустить;
-4. оставить, если `range.contains(chebyshev(source, target))` и `filter` пропускает.
+Кандидаты — в порядке создания, случайного выбирает действие. Шаги 1–4 для одной
+цели — `canTarget`; им же пользуются `apply` и `applyStatus`.
 
 ### 5.3 Interaction
 
-```cpp
-class Interaction {
-public:
-    void apply(Hit hit);                               // урон или лечение
-    bool applyStatus(const Unit& source, UnitId target, const TargetSpec& spec,
-                     std::unique_ptr<Status> status);  // false — правила цели запретили
-};
-```
-
-`apply`:
-1. модификаторы цели по возрастанию `priority()`, при равенстве — в порядке
-   добавления; после каждого — проверка `amount ≥ 0` (иначе `std::logic_error`);
-2. `Damage`: `current -= amount`, публикуется `UnitAttacked{source, target, amount, max(0, current)}`;
-   если `current ≤ 0` и юнит ещё не мёртв — пометка «мёртв» и сразу `UnitDied`;
-3. `Heal`: `current = min(max, current + amount)`, публикуется `UnitHealed`
-   (с `amount` после модификаторов, в том числе 0);
-4. `ActivityTracker::markChange()`.
+- `apply` проверяет цель тем же `canTarget`: источника или цели нет, цель — сам
+  источник, мертва, без `Health`, правила запретили или вне дистанции —
+  `std::logic_error`. Отрицательный `amount` и `Effect::Status` в `apply` — тоже.
+- `Damage`: HP уменьшается, публикуется `UnitAttacked{source, target, amount,
+  max(0, HP)}`; если HP ≤ 0 и юнит ещё не был мёртв — сразу `UnitDied`.
+- `Heal`: HP растёт не выше `max`, публикуется `UnitHealed` с фактически восстановленным
+  HP — `min(amount, max − HP)`, а не запрошенным (согласовано); в том числе с 0.
+- Каждое применение — изменение мира для `ActivityTracker`.
+- `applyStatus` возвращает `false`, если правила цели запретили статус.
+- **Повторное наложение статуса** (согласовано): новый экземпляр заменяет старый —
+  срок и параметры обновляются, в индексе он встаёт в конец; `applyStatus` возвращает
+  `true` и отмечает изменение мира. Продление срока и стаки отложены до первой
+  механики, которой они нужны.
+- **Модификаторов удара** (щит, резист, запрет лечения) **нет** (согласовано): юнитам из
+  задания и «Планов» они не нужны (KNOWN_ISSUES.md, п. 12).
 
 **Приёмка:** урон больше HP даёт `targetHp = 0` и одно `UnitDied`; повторный удар по
-мёртвому невозможен (его не выбирает `Targeting`); лечение не поднимает HP выше max;
-модификатор, обнуливший урон, даёт `UnitAttacked` с `damage = 0`.
+мёртвому невозможен (его не выбирает `Targeting`, а `apply` бросает `logic_error`);
+`Hit` ближней атаки по летающему или по цели вне дистанции — `logic_error`; лечение не
+поднимает HP выше max; повторно наложенный статус заменяет прежний.
 
 ## 6. Core / Simulation
 
 ### 6.1 Scheduler
 
-```cpp
-class Scheduler {
-public:
-    using Effect = std::function<void(TurnContext&)>;
-    void schedule(Tick at, UnitId source, Effect);   // at ≤ текущий → logic_error
-    bool empty() const;
-    // Simulation: забирает эффекты тика N в порядке постановки
-};
-```
+- Задача — «в тик T выполнить X от источника S»; выполняются в порядке постановки.
+  Номер текущего тика и очередь хранятся в `World`: тик нужен и выводу событий.
+- **Контракт задачи:** захватывает только значения и `UnitId`, а не указатели и ссылки
+  на юнитов, действия и статусы — к сроку задачи их могли удалить или заменить. Юнитов
+  находит через `query().find()` и сама обрабатывает их отсутствие. Задачи не
+  отменяются (ARCHITECTURE.md, п. 4.13).
 
 ### 6.2 TurnContext и MovementService
 
-`TurnContext` — как в архитектуре (п. 4.3). Изменяющие методы фасадов вызывают
-`ActivityTracker::markChange()`.
-
-```cpp
-class MovementService {
-public:
-    // Один шаг в соседнюю клетку. false — у юнита нет Movement, клетка вне карты,
-    // не соседняя или занята для этого юнита.
-    bool stepTo(const Unit&, Position cell);
-};
-```
-
-`stepTo` при успехе: освобождает и занимает клетки (для `occupiesCell`), меняет
-позицию, публикует `UnitMoved`, вызывает `IEnterTrigger` клетки.
+- Изменением мира считается всё, что делают `schedule`, `requestRemoval`, `publish`
+  (события фич), `effects()` и `movement()`. `random()` — не изменение.
+- `requestRemoval(id)` — только для юнита без `Health` (мина после взрыва), согласовано.
+  Юнит с `Health` уходит с поля только через смерть — через отбор целей, правила цели
+  и `UnitDied`; `requestRemoval` на нём — `std::logic_error`, пометка не ставится и
+  изменение не считается. Неизвестный id — тоже `std::logic_error`.
+  **Приёмка:** `requestRemoval` юнита с `Health` бросает и не меняет счётчик изменений;
+  юнита без `Health` — помечает и увеличивает счётчик.
+- `stepTo(unit, cell)` — один шаг в соседнюю клетку: `false`, если у юнита нет
+  `Movement`, клетка вне карты, не соседняя или занята для него. При успехе — клетки
+  освобождаются и занимаются (для `occupiesCell`), позиция меняется, `UnitMoved`.
+- Первый марш в очереди публикует `MarchStarted` при постановке; приход в цель —
+  `MarchEnded` и `MarchStarted` следующего, если он есть.
+- `IRandom::index(count)` — индекс в `[0, count)`; в приложении — `mt19937_64` с seed
+  от `std::random_device`.
 
 ### 6.3 MarchStep
 
 ```
-нет Movement или очередь пуста          → false
-budget = speed; moved = false
-пока budget > 0 и юнит не в цели:
-    кандидаты = соседние клетки, уменьшающие расстояние до цели и свободные для юнита
-    если пусто → break
-    cell = прямая клетка (sign(dx), sign(dy)), если она среди кандидатов,
-           иначе случайная из кандидатов
-    cost = map.moveCost(cell, unit)
-    если moved и cost > budget → break        // первый шаг разрешён всегда
-    movement.stepTo(unit, cell); budget -= cost; moved = true
-если юнит в цели: MarchEnded; pop; если очередь не пуста → MarchStarted следующего
-return moved
+очередь пуста                            → false
+до speed шагов, пока юнит не в цели и жив:
+    кандидаты = соседние клетки, ближе к цели и свободные для юнита
+    нет кандидатов → стоп
+    шаг в прямую клетку (sign(dx), sign(dy)), если она среди кандидатов,
+    иначе в случайную из кандидатов
+юнит в цели → завершить марш, true
+был хоть один шаг → true, иначе false
 ```
 
 ### 6.4 Simulation
 
-```cpp
-class Simulation {
-public:
-    Simulation(World&, EventBus&, IRandom&, Tick tickLimit = 30'000);
-    // Тик 1 уже прошёл (установка). Возвращает причину остановки.
-    StopReason run();   // OneOrNoUnitsLeft | NothingHappened | TickLimit
-};
+```
+если живых ≤ 1 → OneOrNoUnitsLeft                    // сразу после установки
+тик 2, 3, …:
+    Scheduled: задачи этого тика
+    Main: юниты из снимка порядка создания; мёртвых и помеченных пропустить;
+          первое действие, вернувшее true; если вернуло false,
+          а мир изменился → logic_error (контракт IAction)
+    Cleanup: удалить мёртвых и помеченных, снять истёкшие статусы
+    живых ≤ 1                         → OneOrNoUnitsLeft
+    тик пустой и очередь задач пуста  → NothingHappened
+    достигнут лимит (30 000)          → TickLimit
 ```
 
-Цикл:
-
-```
-если aliveCount ≤ 1 → OneOrNoUnitsLeft                // сразу после установки
-for tick = 2 …:
-    tracker.beginTick()
-    Scheduled: выполнить эффекты тика, markScheduled на каждый
-    Main: для id из снимка порядка создания:
-        пропустить мёртвых, помеченных на удаление, удалённых
-        для action в behaviour:
-            before = tracker.changes()
-            if action.tryExecute(unit, ctx): markAction; break
-            if tracker.changes() != before: logic_error   // контракт IAction
-    Cleanup: removed = store.removePending(); markRemoval при removed > 0;
-             снять истёкшие статусы
-    aliveCount ≤ 1                        → OneOrNoUnitsLeft
-    tickWasEmpty && scheduler.empty       → NothingHappened
-    tick == tickLimit                     → TickLimit
-```
+- Снятие истёкших статусов не делает тик непустым.
+- Лимит тиков меньше 2 — `std::logic_error`.
 
 **Приёмка:**
 - юнит, убитый в фазе Main до своего хода, в этом тике не действует;
@@ -444,70 +317,54 @@ for tick = 2 …:
 
 ## 7. Core / Setup
 
-```cpp
-class SetupContext {
-public:
-    Result<void> createMap(int64_t width, int64_t height);
-    Result<void> spawn(Result<Unit> unit);           // ошибки фабрики пробрасываются
-    Result<void> orderMarch(UnitId, Position target);
-};
-```
+- Фабрика юнита возвращает `SpawnRequest`: id, позицию, занятость клетки и юнита *или*
+  ошибки фабрики. Поэтому у спавна с плохими статами и занятой клеткой видны обе ошибки.
+- Все проверки одного вызова собираются вместе.
 
-| Метод | Проверки (код ошибки) |
+| Команда | Проверки (код ошибки) |
 |---|---|
-| `createMap` | повторно — `map.already_created`; W или H = 0 — `map.invalid_size` |
+| `createMap` | повторно (даже если первая команда была с ошибкой) — `map.already_created`; W или H = 0 — `map.invalid_size` |
 | `spawn` | ошибки фабрики как есть; нет карты — `map.not_created` (один раз за сценарий); id занят — `unit.duplicate_id` (relatedUnit = id); вне карты — `unit.out_of_bounds`; клетка занята — `unit.cell_occupied` (relatedUnit = занявший) |
 | `orderMarch` | id отклонённого спавна — без ошибки (п. 0.4); нет юнита — `march.unit_not_found`; нет `Movement` — `march.unit_cannot_move`; цель вне карты — `march.out_of_bounds`; цель совпадает с концом очереди (или позицией, если очередь пуста) — `march.same_position` |
 
-- Успешный `spawn` публикует `UnitSpawned`; первый марш юнита публикует
-  `MarchStarted` сразу (тик 1), следующие только встают в очередь.
-- Все проверки одного вызова собираются вместе (у `spawn` с плохими статами и
-  занятой клеткой — обе ошибки).
+- Успешный `spawn` публикует `UnitSpawned`; первый марш юнита — `MarchStarted` сразу
+  (тик 1), следующие встают в очередь.
+- **Последствия неудачного `CREATE_MAP`** (согласовано): если `CREATE_MAP` был, но с
+  ошибкой, команды, которым нужна карта, `map.not_created` не дают — первопричина уже
+  в списке. Юниты отклоняются молча, но ошибки их статов выводятся.
+- Повторный id принадлежит уже стоящему юниту, поэтому `MARCH` на этот id относится к
+  первому юниту и проверяется как обычно.
+- Сообщения не называют команды сценария: Core не знает формата ввода. Номер строки и
+  имя команды добавляет App (п. 10.3). Ошибки `march.*` про существующего юнита несут
+  `relatedUnit`.
+- Конец установки без созданной карты — `map.not_created` (п. 0.5).
 
 ## 8. IO
 
 ### 8.1 CommandParser
 
-```cpp
-struct ParseDiagnostic { size_t line; std::string command; std::string code; std::string message; };
-
-class CommandParser {
-public:
-    template <class TCommand>
-    CommandParser& add(std::function<void(TCommand, size_t line)> handler);  // дубль → logic_error
-    std::vector<ParseDiagnostic> parse(std::istream&);   // не бросает на пользовательском вводе
-};
-```
-
-- Пустые строки и строки, начинающиеся с `//`, пропускаются (как сейчас).
-- **Число не читается через `operator>>`.** Проверено на clang 15.0.7 с libstdc++ 13
-  и с libc++ 15 — поведение одинаковое, `failbit` не ставится ни в одном случае:
-
-  | Токен | `operator>>` в `uint32_t` | `std::from_chars` |
-  |---|---|---|
-  | `-5` | 4294967291 | `invalid_argument` |
-  | `+5` | 5 | `invalid_argument` |
-  | `5x` | 5, остаток `x` в потоке | ok, разобран только `5` |
-  | `1.5` | 1, остаток `.5` в потоке | ok, разобран только `1` |
-  | `4294967296` | `failbit` | `result_out_of_range` |
-
-  `from_chars` сам отвергает знак, но принимает префикс (`5x` → 5). Поэтому разбор
-  поля `uint32_t` такой:
-  1. токен читается как строка;
-  2. в нём допускаются только цифры `0–9` — так отсекаются `-5`, `+5`, `5x`, `1.5`;
-  3. значение получает `std::from_chars`; `errc::result_out_of_range` — переполнение.
-- Тип поля в `visit` проверяется на этапе компиляции: `uint32_t` — разбор выше,
-  `std::string` — токен как есть, другой тип — `static_assert`. Новый DTO не может
-  незаметно вернуться к `operator>>`.
-- Ошибка числа — `parse.invalid_number` с именем поля из `visit`:
-  «hp: expected non-negative integer, got "-5"», «hp: value exceeds 4294967295».
-- Не хватает токенов — `parse.missing_argument` с именем первого отсутствующего поля;
-  лишние — `parse.extra_argument`.
-- Строка с ошибкой разбора в handler не передаётся.
+- Разбор не бросает исключений на пользовательском вводе: ошибки собираются с номером
+  строки. Пустые строки, строки из пробелов и строки с `//` пропускаются; лишние
+  пробелы, табуляция и `\r\n` допустимы.
+- **Число не читается через `operator>>`**: тот принимает `-5`, `+5`, `5x`, `1.5`
+  (KNOWN_ISSUES.md, п. 3). Поле `uint32_t` разбирается так: токен как строка → только
+  цифры `0–9` → `std::from_chars`, переполнение — ошибка. Разбор — `parseUInt32`
+  (`IO/System/ParseNumber`).
+- Тип поля в DTO проверяется при компиляции: `uint32_t` — разбор выше, `std::string` —
+  токен как есть, другой тип — `static_assert`. Новый DTO не может незаметно вернуться
+  к `operator>>`.
+- Ошибки: `parse.unknown_command` «unknown command 'X'» (без имени команды);
+  `parse.missing_argument` «missing argument 'range'» (первое отсутствующее поле);
+  `parse.extra_argument` «unexpected extra argument '4'»; `parse.invalid_number`
+  «hp: expected non-negative integer, got "-5"», «width: value exceeds 4294967295, got …».
+- В строке выводится только первая ошибка поля: дальше позиция уже не совпадает с
+  полями. Строка с ошибкой в обработчик не передаётся. Ошибки разных строк собираются
+  все.
 
 ### 8.2 EventLog
 
-Без изменений: `log(tick, event)` пишет `[tick] NAME field=value ...` в `std::cout`.
+- Пишет `[tick] NAME field=value ...` в `std::cout`; формат не менялся. Конец строки —
+  `'\n'` (`performance-avoid-endl`): буфер сбрасывается при выходе из программы.
 
 **Приёмка:** `SPAWN_HUNTER 1 0 0 10 5 1` → `missing_argument: range`;
 `CREATE_MAP 10 x` → `invalid_number: height`; `MARCH 1 2 3 4` → `extra_argument`;
@@ -515,8 +372,7 @@ public:
 
 | Токен | Результат |
 |---|---|
-| `-5` | `invalid_number`: expected non-negative integer |
-| `+5`, `5x`, `1.5`, `0x10` | `invalid_number`: expected non-negative integer |
+| `-5`, `+5`, `5x`, `1.5`, `0x10` | `invalid_number`: expected non-negative integer |
 | `4294967295` | 4294967295 |
 | `4294967296` | `invalid_number`: value exceeds 4294967295 |
 | `007` | 7 — ведущие нули допустимы |
@@ -525,59 +381,55 @@ public:
 
 ### 9.1 Common
 
-- `CommonTags`: `melee`, `ranged`, `area`, `physical`, `flying`.
-- `TargetSpecs`: `attack`, `heal`, `buff`, `debuff` (архитектура, п. 4.9).
-- `Stats`: `Strength`, `Agility`, `Range`, `Power`, `Spirit` — `struct { int64_t value; }`.
-- Спецификации юнитов (`HunterSpec` и др.) — поля `int64_t`; `UnitId` и `Position` —
-  типы Core (п. 1.1, 1.4).
-- `stat<T>` — источник значения стата: читает компонент `T` у юнита в момент вызова
-  и объявляет требование компонента `T`. Это единственная точка чтения статов:
-  будущие модификаторы статов (баффы, проклятия) добавляются в `stat<T>` внутри
-  Features, без правок Core и без правок действий.
-- `distance(min, max)` — источник дистанции действия; каждая граница — число или
-  `stat<T>`. Вычисляется в `DistanceRange` при каждом выполнении действия;
-  если `min > max` (например, дальность уменьшили ниже 2) — целей нет.
-- `UnitBuilder`:
+Устройство и правила — [src/Features/README.md](src/Features/README.md). Поведение:
 
-```cpp
-UnitBuilder(UnitId, std::string type, Position);    // occupiesCell = true
-UnitBuilder& occupiesCell(bool);
-UnitBuilder& tag(Tag);
-template <class C, class... A> UnitBuilder& with(A&&...);
-template <class Act, class... A> UnitBuilder& action(A&&...);
-Unit build();   // проверка requirements → logic_error со списком недостающего
-```
+- `stat<T>` читает компонент `T` в момент действия и объявляет его требование. Это
+  единственная точка чтения статов: модификаторы статов встанут сюда без правок
+  действий (KNOWN_ISSUES.md, п. 12).
+- `distance(min, max)` — каждая граница число или `stat<T>`, вычисляется при каждом
+  выполнении; `min > max` (например, дальность упала ниже 2) — целей нет.
+- `requirePositive(errors, name, value)` — `unit.invalid_stat` «hp must be positive, got 0».
+- `UnitBuilder::build` проверяет требования действий — `logic_error` со списком
+  недостающего; `reject(errors)` — заявка на спавн с ошибками фабрики (п. 7).
 
 ### 9.2 Действия
 
 | Действие | Поведение |
 |---|---|
-| `MeleeAttack(stat<T>)` | цели — `select(self, attack({melee, physical}, {1,1}))`; нет — `false`; иначе случайная, `apply(Hit{…, amount = T})`, `true` |
-| `RangedAttack(stat<T>, distance(min, max), precondition?)` | если `precondition` не выполнено — `false`; дистанция вычисляется из `distance`; цели — `attack({ranged, physical}, дистанция)`; дальше как `MeleeAttack` |
-| `RequireNoAdjacentOccupying` | `false`, если среди `neighbours(self)` есть живой юнит с `occupiesCell` |
+| `MeleeAttack(stat<T>)` | цели — `attack({melee, physical}, {1,1})`; нет — `false`; иначе случайная, урон `max(0, T)`, `true` |
+| `RangedAttack(stat<T>, distance, condition?)` | условие не выполнено — `false`; цели — `attack({ranged, physical}, distance)`; дальше как `MeleeAttack` |
+| `RequireNoAdjacentOccupying` | `false`, если рядом есть живой юнит с `occupiesCell` |
+
+- **Отрицательный стат урона** (согласовано): если характеристика урона ниже нуля
+  (будущий дебафф), удар происходит с уроном 0, действие выполнено.
 
 ### 9.3 Юниты
 
-| Юнит | Spec | Проверки | Сборка |
+| Юнит | Параметры | Проверки | Сборка |
 |---|---|---|---|
-| Swordsman | id, pos, hp, strength | hp, strength > 0 (`unit.invalid_stat`) | `Health`, `Strength`, `Movement(1)`; [`MeleeAttack(stat<Strength>)`, `MarchStep`] |
-| Hunter | id, pos, hp, agility, strength, range | hp, agility, strength > 0 (`unit.invalid_stat`); range ≥ 2 (`hunter.invalid_range`) | `Health`, `Agility`, `Strength`, `Range`, `Movement(1)`; [`RangedAttack(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying)`, `MeleeAttack(stat<Strength>)`, `MarchStep`] |
+| `Swordsman` | id, pos, hp, strength | hp, strength > 0 (`unit.invalid_stat`) | `Health`, `Strength`, `Movement(1)`; [`MeleeAttack(stat<Strength>)`, `MarchStep`] |
+| `Hunter` | id, pos, hp, agility, strength, range | hp, agility, strength > 0 (`unit.invalid_stat`); range ≥ 2 (`hunter.invalid_range`) | `Health`, `Agility`, `Strength`, `Range`, `Movement(1)`; [`RangedAttack(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying)`, `MeleeAttack(stat<Strength>)`, `MarchStep`] |
+
+- Все ошибки статов — одним списком. `range` проверяется только правилом
+  `hunter.invalid_range`: `range = 0` даёт одну эту ошибку.
+- Тип в `UNIT_SPAWNED` — `Swordsman` и `Hunter`.
 
 **Приёмка:** Охотник с соседом бьёт `Strength`; без соседей и с целью на дистанции
-2..range стреляет `Agility`; цель на дистанции 1 и сосед-летающий в тестовом
-юните не мешают выстрелу; Мечник без соседей и без марша бездействует; один и тот
-же объект `distance(2, stat<Range>)` на юнитах с разным `Range` даёт разные
-дистанции — значение не зафиксировано при сборке.
+2..range стреляет `Agility`; цель на дистанции 1 и сосед-летающий не мешают выстрелу;
+Мечник без соседей и без марша бездействует; один и тот же `distance(2, stat<Range>)`
+на юнитах с разным `Range` даёт разные дистанции; `commands_example.txt` через
+`SetupContext` и `Simulation` даёт на тиках 1–6 лог исходного `main.cpp` (с тика 7 —
+расхождение из-за выстрела на дистанцию 5 в исходном логе, KNOWN_ISSUES.md, п. 4).
 
 ## 10. App
 
 ### 10.1 Application
 
-```cpp
-int Application::run(int argc, char** argv);   // main: return Application{}.run(argc, argv);
-```
+- `run` не бросает: любое исключение печатается как `internal error`, код 3. stdout
+  занят только событиями, сообщения приложения — в stderr.
+- Тесты подставляют свои привязки, адаптеры вывода, `IRandom` и лимит тиков.
 
-| Ситуация | stderr | код |
+| Ситуация | stderr | Код |
 |---|---|---|
 | аргументов не 1 | `usage: sw_battle_test <scenario-file>` | 1 |
 | файл не открылся | `error: cannot open file '<path>'` | 1 |
@@ -588,14 +440,18 @@ int Application::run(int argc, char** argv);   // main: return Application{}.run
 
 ### 10.2 Scenario
 
-- `CommandRegistry::on<TCommand>(handler(const TCommand&, SetupContext&) -> Result<void>)`
-  регистрирует команду в `CommandParser` и запоминает обработчик; дубль — `logic_error`.
-- `ScenarioLoader` — читает файл, возвращает шаги `{line, command, handler}` и ошибки разбора.
-- `ScenarioValidator` (проход 1) — новый мир с `EventBus` без подписчиков; выполняет
-  все шаги, собирает ошибки, к каждой добавляет файл, строку и имя команды; для
-  `relatedUnit` ищет строку успешного спавна этого юнита.
-- `ScenarioRunner` (проход 2) — новый мир с подключённым `EventBridge`, все шаги,
-  затем `Simulation::run`.
+Два прохода — [ADR 0008](docs/adr/0008-whole-scenario-validation.md).
+
+- Команда связывается со своим обработчиком один раз; дубль — `logic_error`. Шаг
+  сценария (строка, команда, обработчик) можно выполнить дважды: на этом держатся два
+  прохода.
+- **Проход 1** — новый мир без вывода; выполняются все разобравшиеся шаги, даже если в
+  других строках ошибки разбора: список должен быть полным. К каждой ошибке
+  добавляются строка и имя команды; для `relatedUnit` — строка его успешного спавна
+  (юнит, появившийся в мире после шага, заспавнен этим шагом). `CREATE_MAP` с ошибкой
+  разбора — неудачный `CREATE_MAP`, последствия подавляются (п. 7).
+- **Проход 2** — новый мир с выводом событий, все шаги, затем симуляция. Ошибка шага
+  здесь — `std::logic_error`: проход 1 её пропустил.
 
 ### 10.3 Формат ошибок
 
@@ -605,49 +461,57 @@ error: <file>: [<code>]: <message>                 — ошибка без ст�
 <N> error(s), simulation not started.
 ```
 
-Ошибки выводятся в порядке строк; ошибки одной строки — в порядке обнаружения.
+- Порядок — по строкам; ошибки одной строки — в порядке обнаружения; без строки — в
+  конце.
+- У нераспознанной команды имени нет: `error: s.txt:2: [parse.unknown_command]: unknown command 'FLY'`.
+- Итог: `1 error, …` / `N errors, simulation not started.` Хвост про строку спавна —
+  только когда она известна.
 
 ### 10.4 Output
 
-- `EventBridge::on<E>(std::function<void(const E&, EventLog&, Tick)>)` — дубль типа
-  `logic_error`; подписывается на `EventBus`.
-- `CoreEventsOutput` переводит 7 событий Core в `io::Events` (`UnitHealed` — с Лекарем).
+- Номер тика события берётся в момент события (`World::tick()`). Два адаптера одного
+  типа события или пустой адаптер — `logic_error`; событие без адаптера не выводится
+  (так сейчас с `UnitHealed`).
+- Адаптеры: `CoreEventsOutput` — события Core из исходного формата; событие Core,
+  которое попадает в вывод вместе с фичей (`UnitHealed` с Лекарем), — отдельным файлом
+  этой фичи (`UnitHealedOutput.cpp`), правка `CoreEventsOutput` не нужна; команды — `CoreBindings` (`CREATE_MAP`,
+  `MARCH`), `SwordsmanBinding`, `HunterBinding`. Каждый регистрируется сам
+  ([ADR 0004](docs/adr/0004-self-registration-of-adapters.md)).
 
 ### 10.5 Переводы типов на границе
 
-Единственные места, где встречаются `uint32_t` из IO и `int64_t` домена (п. 1.4):
-
 | Направление | Где | Как |
 |---|---|---|
-| ввод: DTO → домен | `App/Bindings` | `uint32_t → int64_t` — расширение без потерь; `unitId → UnitId{…}` |
-| вывод: домен → DTO | `App/Output` | `int64_t → uint32_t` через `narrow`; HP уже приведён к `max(0, current)` в событии Core |
+| ввод: DTO → домен | `App/Bindings` | `uint32_t → int64_t` без потерь; `unitId → UnitId{…}` |
+| вывод: домен → DTO | `App/Output` | `int64_t → uint32_t` через `narrow`; HP уже `max(0, current)` |
 
-**Приёмка:** адаптер ввода не содержит проверок диапазона (они не нужны); вывод
-события со значением вне `uint32_t` — `std::logic_error` (код выхода 3).
+**Приёмка:** адаптер ввода не проверяет диапазон (не нужно); вывод события со
+значением вне `uint32_t` — `std::logic_error`, код выхода 3.
 
 ## 11. Сборка и тесты
 
-- CMake-цели: `sw_core`, `sw_features`, `sw_io` — статические библиотеки (в них нет
-  саморегистрации); `sw_app` — OBJECT-библиотека (саморегистрация, архитектура п. 5.4);
-  `sw_battle_test` — исполняемый файл; `sw_tests` — тесты.
-- Тесты — собственный минимальный фреймворк (`TEST`, `CHECK`, `CHECK_THROWS`) без
-  внешних зависимостей; запуск через `ctest`.
-- Сценарные тесты используют `IRandom`-заглушку, выбирающую первый вариант, и
-  сравнивают stdout/stderr с эталоном.
-- Флаги: `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion`; сборка без
-  предупреждений на clang 15+. `-Wconversion` и `-Wsign-conversion` ловят неявное смешение
-  знаковых и беззнаковых типов и сужение на этапе компиляции — правило п. 1.4
-  проверяет компилятор, а не только ревью.
-- Тестовая сборка — с `-fsanitize=undefined,implicit-conversion` (clang). Проверено
-  на clang 15: `uint32_t u = int64_t{-1}` даёт `runtime error: implicit conversion …
-  changed the value to 4294967295`. Неявная смена знака или усечение, если всё же
-  случились, видны в выводе теста.
-- Санитайзер `unsigned-integer-overflow` не включается: беззнаковое переполнение в
-  C++ определено, а сам санитайзер срабатывает на штатном коде стандартной
-  библиотеки. Проверено: в libstdc++ 13 — на `std::mt19937` (`bits/random.tcc`),
-  который использует `StdRandom`; в libc++ 15 на том же коде отчётов нет.
-- `-Wconversion` на clang 15 сообщает о сужении `int64_t → uint32_t` как
-  `-Wshorten-64-to-32` — проверено.
-- Окружение сборки на Ubuntu 24.04: `clang-15`, `libclang-rt-15-dev` (рантайм
-  санитайзеров — без него тестовая сборка не линкуется), `cmake` (в 24.04 — 3.28,
-  это ≥ 3.27; в 22.04 — 3.22, не подходит).
+Сборка, запуск и тесты — [README.md](README.md). Здесь — то, что не очевидно:
+
+- `sw_app` — OBJECT-библиотека, никогда не статическая: иначе линкер выбросит
+  саморегистрацию ([ADR 0004](docs/adr/0004-self-registration-of-adapters.md)).
+  `sw_core`, `sw_features`, `sw_io` — статические.
+- Тесты — собственный мини-фреймворк (`TEST`, `CHECK`, `CHECK_THROWS`) без внешних
+  зависимостей. Сценарии с эталонами `tests/scenarios/<имя>/expected.{out,err,code}`
+  составлены без случайного выбора, поэтому их проверяет и настоящий исполняемый файл
+  (`ctest scenario.<имя>`); новый каталог подхватывается без правок CMake.
+- Флаги `-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion`: правило п. 1.4
+  проверяет компилятор, а не только ревью. Предупреждения как ошибки — стандартной
+  опцией `-DCMAKE_COMPILE_WARNING_AS_ERROR=ON`, как в CI.
+- `-DSW_SANITIZE=ON` (только clang) — все цели с `-fsanitize=undefined,implicit-conversion`:
+  неявная смена знака или усечение роняют тест. На Ubuntu нужен пакет
+  `libclang-rt-15-dev` (рантайм санитайзеров), иначе сборка не линкуется. `unsigned-integer-overflow` не
+  включается: он срабатывает на `std::mt19937` в libstdc++. В CI — отдельная задача
+  ASan + UBSan на clang 18.
+- **Проверка границ слоёв** (`cmake/CheckLayerBoundaries.cmake`): Core → Core;
+  Features → Core, Features; IO → IO; App → все; `main.cpp` не ограничен. Слой — первый
+  каталог относительно `src/`; `"…"` разрешается сначала относительно файла, затем
+  через `src/`. Выполняется при сборке любой цели; все нарушения сразу, сборка падает.
+  Сама проверка тестируется на трёх заведомых нарушениях
+  (`tests/LayerBoundaries/fixtures`).
+- Форматирование — `clang-format-18`, версия закреплена: clang-format 15 этот
+  `.clang-format` не читает.

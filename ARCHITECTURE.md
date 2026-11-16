@@ -1,14 +1,21 @@
 # Архитектура симуляции
 
-Статус: **утверждена**. Код по этому документу ещё не написан. Поведение модулей —
-в [SPECIFICATION.md](SPECIFICATION.md), деление на задачи — в [TASKS.md](TASKS.md).
+Статус: **утверждена и реализована** (задачи T01–T19). Решения с рассмотренными
+вариантами — в [docs/adr](docs/adr/README.md), термины — в [GLOSSARY.md](GLOSSARY.md),
+поведение модулей — в [SPECIFICATION.md](SPECIFICATION.md), деление на задачи — в
+[TASKS.md](TASKS.md), известные недостатки — в [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
+Документ описывает устройство: что где лежит и как части связаны. Почему выбрано
+именно так и что отвергли — в ADR, ссылки на них стоят в разделах.
 
 ## 1. Цели и ограничения
 
 - Core принадлежит одному владельцу, Features пишут много разработчиков параллельно.
   Новый юнит, действие, характеристика или эффект добавляются **без правок Core**.
 - В Core — механизмы и базовые правила из задания, а не контент. Каждый механизм
-  нужен хотя бы одному юниту из задания или из планов; «универсального движка» нет.
+  нужен хотя бы одному юниту из задания или из планов; «универсального движка» нет
+  ([ADR 0007](docs/adr/0007-no-mechanisms-without-consumers.md)). Правила мира из задания — HP со смертью и марш — живут в Core
+  ([ADR 0006](docs/adr/0006-world-rules-in-core.md)).
 - Часть Core закрыта намеренно: это ядро правил, а не точки расширения. Сюда
   относятся три фазы тика, условия конца симуляции, набор событий Core, флаг
   `occupiesCell`, оси `Intent` и `Effect`.
@@ -32,6 +39,9 @@ main ──► App ──────┬─────────────�
 | **Features** | статы, действия, теги, статусы; спецификации юнитов (`HunterSpec`), их проверка и сборка | Core |
 | **App** | разбор аргументов, загрузка и валидация сценария, адаптеры команд (`Bindings`), вывод событий и ошибок, коды выхода | всё |
 
+Почему Core не знает формат ввода и вывода —
+[ADR 0002](docs/adr/0002-core-independent-of-io.md).
+
 Правила:
 - **Core → никуда.** Core публикует события своих типов и ничего не знает про
   формат ввода и вывода.
@@ -53,9 +63,14 @@ main ──► App ──────┬─────────────�
   валидация и исключения. Переводы `uint32_t ↔ int64_t` — только в `App/Bindings`
   (расширение без потерь) и `App/Output` (сужение с проверкой). Подробности — в
   SPECIFICATION.md, п. 1.4 и 10.5.
+- **Границы слоёв проверяются автоматически.** `cmake/CheckLayerBoundaries.cmake`
+  выполняется в каждой сборке: если файл слоя включает запрещённый слой (Core → IO,
+  Features → App и т. п.), сборка падает со списком всех нарушений. Правило держится
+  на проверке, а не только на ревью.
 - **Общих списков, которые правят все, нет.** Адаптеры регистрируются сами,
-  в своём файле (п. 5.4), а теги объявляются там, где нужны (п. 4.9). Это
-  убирает постоянные merge-конфликты при параллельной работе.
+  в своём файле (п. 5.4, [ADR 0004](docs/adr/0004-self-registration-of-adapters.md)),
+  а теги объявляются там, где нужны (п. 4.9). Это убирает постоянные merge-конфликты
+  при параллельной работе.
 
 ## 3. Структура каталогов
 
@@ -78,42 +93,48 @@ src/
   IO/
     Commands/, Events/              — DTO (формат не меняется)
     System/CommandParser            — парсер, собирающий ошибки вместо исключений
-    System/EventLog
+    System/ParseNumber              — строгий разбор uint32_t (без operator>>)
+    System/EventLog, PrintDebug     — вывод событий (исходный код IO)
   Core/
-    Common/       Types (UnitId, Tick, Position), Distance (Чебышёв), DistanceRange,
-                  Result, Diagnostic, Tag/TagSet
-    Map/          Map (размер, занятость клеток), IMoveCostModifier, IEnterTrigger
-    Units/        Unit, хранилище компонентов, Health, Movement, Status,
-                  ComponentRequirements
-    Actions/      IAction, Behaviour (список по приоритету), MarchStep
-    Interaction/  Intent, Effect, TargetSpec, ITargetRule, Targeting, Hit,
-                  IHitModifier, Interaction
+    Common/       Types (UnitId, Tick, Position, chebyshev), DistanceRange, Narrow,
+                  Result, Diagnostic, Tag/TagSet, TypeName
+    Map/          Map (размер, разреженная занятость клеток)
+    Units/        Unit + UnitBlueprint, IComponent, ComponentStore (индексы правил цели и статусов),
+                  CoreComponents (Health, Movement, Status), ComponentRequirements
+    Actions/      IAction, MarchStep
+    Interaction/  TargetSpec (Intent, Effect, TargetSpec, Hit), ITargetRule, Targeting,
+                  Interaction
     World/        World (агрегат), UnitStore, SpatialQuery, ActivityTracker
-    Simulation/   Simulation (фазы), Scheduler, TurnContext, Termination
+    Simulation/   Simulation (фазы и условия конца), Scheduler, TurnContext, MovementService
     Events/       EventBus, CoreEvents
     Random/       IRandom, StdRandom
-    Setup/        SetupContext (createMap, spawn, orderMarch → Result)
+    Setup/        SetupContext (createMap, spawn, orderMarch → Result), SpawnRequest
   Features/
     Common/       CommonTags (melee, ranged, area, physical, flying),
-                  TargetSpecs (attack, heal, buff, debuff), Stats,
-                  Actions (MeleeAttack, RangedAttack), UnitBuilder
+                  TargetSpecs (attack, heal, buff, debuff), Stats, ValueSource (stat<T>,
+                  distance), UnitBuilder, Attacks (MeleeAttack, RangedAttack)
     Units/        Swordsman, Hunter — спецификация, проверка, сборка
+tests/            юнит-тесты по слоям; scenarios/ — сценарии с эталонами вывода
+cmake/            CheckLayerBoundaries (границы слоёв), RunScenario (сценарные тесты)
+docs/adr/         архитектурные решения
 ```
 
 ## 4. Модель Core
 
 ### 4.1 Юнит
 
-Юнит — это:
+Юнит — конфигурация, а не подкласс
+([ADR 0001](docs/adr/0001-unit-components-and-behaviour.md)). Это:
 - `UnitId`, имя типа (`"Swordsman"`), позиция;
 - `occupiesCell` — занимает ли юнит клетку (базовое правило задания). По умолчанию
   `true`; Ворон и Мина — `false`;
 - `TagSet tags` — свойства юнита, которые объявляют Features (`flying`…). Core
-  смысла тегов не знает: их проверяют правила целей и свойства клеток;
+  смысла тегов не знает: их проверяют правила целей;
 - набор компонентов (хранилище по `type_index`; `get<T>()`, `tryGet<T>()`, `has<T>()`).
-  При добавлении компонент индексируется по интерфейсам-хукам (`ITargetRule`,
-  `IHitModifier`), чтобы Core не перебирал все компоненты при каждом ударе;
-- `Behaviour` — упорядоченный список `IAction`.
+  При добавлении компонент попадает в индекс, если это правило цели (`ITargetRule`)
+  или статус, чтобы Core не перебирал все компоненты при каждом отборе целей и в
+  каждой фазе Cleanup;
+- поведение (`behaviour`) — упорядоченный список `IAction`.
 
 Компоненты Core: `Health` (current, max), `Movement` (speed, очередь маршей), статусы.
 Всё остальное — компоненты Features (`Strength`, `Agility`, `Range`, `Power`, `Spirit`…).
@@ -128,8 +149,11 @@ src/
 
 Код Core обязан работать с юнитом без любого из этих компонентов (контракт, п. 4.13).
 
-Позицию и `occupiesCell` нельзя менять напрямую: позиция меняется только через
-`movement()` (п. 4.3), чтобы занятость клеток в `Map` всегда была согласована.
+Позиция должна совпадать с занятостью клеток в `Map`. Фичи изменить её не могут: им
+доступен только `const Unit&` (п. 4.3), и это проверяет компилятор. Внутри Core позицию
+меняет только `MovementService` — это соглашение, и охраняет его владелец Core.
+Структурной гарантии (единственный владелец позиции — `Map`) пока нет: второго кода,
+который двигает юнитов, в Core нет, а цена переделки — все чтения `unit.position()`.
 
 ### 4.2 Мир и его части
 
@@ -138,7 +162,7 @@ src/
 | Часть | Ответственность |
 |---|---|
 | `UnitStore` | хранение юнитов, порядок создания, пометки «мёртв» / «на удаление», удаление в Cleanup |
-| `Map` | размер, занятость клеток, свойства клеток |
+| `Map` | размер, занятость клеток |
 | `SpatialQuery` | запросы только для чтения: кто в радиусе, соседи, расстояние; мёртвых по умолчанию не возвращает |
 | `Scheduler` | отложенные эффекты по тикам |
 | `ActivityTracker` | учёт активности за тик для правила «пустого тика» (п. 4.6) |
@@ -147,7 +171,7 @@ src/
 
 У частей мира, `Targeting`, `Interaction` и `Scheduler` нет абстрактных интерфейсов:
 реализация у каждого одна, и все они в Core, который меняется редко. Абстракции стоят там, где реализаций
-много или они приходят снаружи: `IAction`, `ITargetRule`, `IHitModifier`, свойства клеток, `IRandom`.
+много или они приходят снаружи: `IAction`, `ITargetRule`, `IRandom`.
 
 ### 4.3 Действия и контекст хода
 
@@ -163,7 +187,7 @@ public:
 };
 ```
 
-В фазе Main у юнита выполняется первое действие из `Behaviour`, вернувшее `true`.
+В фазе Main у юнита выполняется первое действие из `behaviour`, вернувшее `true`.
 Если ни одно не выполнилось, юнит в этом тике бездействует.
 
 Действия параметризуются, а не дублируются:
@@ -172,8 +196,10 @@ public:
 `stat<T>` сам объявляет требование компонента `T`.
 
 Значения статов читаются **в момент выполнения действия**, а не при сборке юнита.
-Поэтому эффект, который меняет стат (бафф дальности стрелков, проклятие силы),
-сразу влияет на действие, а параметры действий менять не нужно.
+`stat<T>` — единственная точка чтения статов, поэтому будущий модификатор стата
+(бафф дальности, проклятие силы) встанет туда, а параметры действий менять не придётся.
+Модификаторов статов сейчас нет: ни одному юниту из задания и планов они не нужны
+(KNOWN_ISSUES.md, п. 12).
 
 **Проверка компонентов при сборке.** `UnitBuilder::build` собирает требования всех
 действий и проверяет, что у юнита есть нужные компоненты. Если `MeleeAttack(stat<Strength>)`
@@ -186,14 +212,14 @@ public:
 class TurnContext {
 public:
     Tick tick() const;
-    const SpatialQuery& query() const; // только чтение
-    Targeting& targeting();            // отбор целей с правилами цели
-    Interaction& effects();            // урон, лечение, наложение статуса
-    MovementService& movement();       // перемещение с проверкой занятости и событиями
-    Scheduler& scheduler();            // отложенные эффекты
-    void requestRemoval(UnitId);       // удаление не через HP
+    const SpatialQuery& query() const;          // только чтение
+    const Targeting& targeting() const;         // отбор целей с правилами цели
+    Interaction& effects();                     // урон, лечение, наложение статуса
+    MovementService& movement();                // перемещение с проверкой занятости и событиями
+    void schedule(Tick at, UnitId source, Scheduler::Task task);   // отложенный эффект
+    void requestRemoval(UnitId);                // удаление не через HP, только юнита без Health
     IRandom& random();
-    EventPublisher& events();          // публикация событий фич
+    template <class E> void publish(const E&);  // событие фичи
 };
 ```
 
@@ -218,28 +244,34 @@ public:
 - Порядок фазы Main — снимок порядка создания на начало фазы. Юниты, созданные
   во время тика (на будущее), действуют со следующего тика.
 - `Scheduler` — единый механизм отложенных эффектов: «в тик T выполнить эффект от
-  источника S». Периодические эффекты (горение) сами ставят себя на следующий тик.
+  источника S». Его потребитель — взрыв Мины. Периодического урона (горения) нет: его
+  нельзя сделать без правки Core (KNOWN_ISSUES.md, п. 12).
 
 ### 4.5 Смерть и удаление
+
+Как трактуется правило задания о смерти — [ADR 0003](docs/adr/0003-unit-died-immediately.md).
 
 - Когда HP становится ≤ 0, `UNIT_DIED` публикуется **сразу**.
 - Мёртвый юнит больше не действует (даже если ещё не ходил в этом тике), не может
   быть целью и не учитывается в запросах «кто рядом».
 - Клетку мёртвый занимает до фазы Cleanup, где он убирается с поля.
 - `requestRemoval(unit)` — удаление не через HP (мина после взрыва); тоже в фазе Cleanup.
+  Только для юнита без `Health`: иначе действие могло бы убрать юнита мимо правил цели
+  и без `UNIT_DIED` (контракт, п. 4.13).
 
 ### 4.6 Конец симуляции
+
+Почему контракт `IAction` проверяется во время работы и зачем лимит тиков —
+[ADR 0009](docs/adr/0009-tick-limit-and-action-contract.md).
 
 Проверяется в фазе Cleanup. Симуляция заканчивается, если выполнено любое условие:
 1. на карте осталось ≤ 1 юнита (считаются все юниты, включая мину);
 2. тик «пустой» **и** очередь `Scheduler` пуста.
    «Пустой» тик — ни одного выполненного действия, ни одного выполненного
    отложенного эффекта, ни одного удаления. Действие считается выполненным,
-   даже если его эффект равен 0 (лечение под запретом лечения).
+   даже если его эффект равен 0.
    Юниты с полным HP целями лечения не становятся: два Лекаря с полным HP не
-   находят целей, тик пустой, симуляция завершается. Бесконечное лечение на 0
-   возможно только с раненым юнитом под запретом лечения в радиусе Лекаря —
-   такой случай останавливает лимит тиков;
+   находят целей, тик пустой, симуляция завершается;
 3. достигнут лимит в 30 000 тиков. В stderr — сообщение об остановке по лимиту,
    код выхода 0 (это не ошибка ввода).
 
@@ -257,7 +289,9 @@ public:
 ### 4.7 Движение и марш
 
 - Марш — базовое правило задания, поэтому `Movement`, очередь маршей, действие
-  `MarchStep` и `MovementService` живут в Core.
+  `MarchStep` и `MovementService` живут в Core
+  ([ADR 0006](docs/adr/0006-world-rules-in-core.md): там же — почему перенос марша в Features сделали и
+  откатили).
 - `Movement { speed; deque<Position> marches; }`. Повторный `MARCH` встаёт в очередь.
 - `MARCH_STARTED` публикуется, когда марш становится активным: первый — в тике 1,
   следующие — сразу после `MARCH_ENDED` предыдущего, в том же тике.
@@ -268,11 +302,9 @@ public:
     движение предсказуемо: юнит идёт к цели по прямой, а не случайным зигзагом.
   - Если прямая клетка не подходит — случайная из остальных подходящих (обход).
   - Если подходящих нет — `MarchStep` возвращает `false`.
-- За ход юнит тратит бюджет `speed`; стоимость входа в клетку дают
-  `IMoveCostModifier` клетки (по умолчанию 1). Первый шаг за ход разрешён всегда,
-  чтобы дорогая клетка не заблокировала юнита навсегда. На каждую клетку — `UNIT_MOVED`.
+- За ход юнит делает до `speed` шагов. На каждую клетку — `UNIT_MOVED`.
 - Приход в цель → `MARCH_ENDED`, из очереди берётся следующий марш.
-- Порядок «атаковать или идти» в Core не зашит: его задаёт `Behaviour` юнита
+- Порядок «атаковать или идти» в Core не зашит: его задаёт `behaviour` юнита
   (п. 4.3). `MarchStep` — обычное действие, и фича ставит его на любое место в
   списке. У Мечника и Охотника по заданию атака стоит раньше шага; юнит, у которого
   `MarchStep` первый, сначала идёт и атакует только когда идти некуда или марша нет.
@@ -281,28 +313,15 @@ public:
 
 ### 4.8 Карта и клетки
 
-- `Map` — размер, занятость клеток юнитами с `occupiesCell`, свойства клеток.
-- Свойство клетки реализует один или оба интерфейса:
-
-  ```cpp
-  class IMoveCostModifier {   // болото, ускорение
-  public:
-      virtual ~IMoveCostModifier() = default;
-      virtual int moveCost(const Unit& unit, int cost) const = 0;
-  };
-
-  class IEnterTrigger {       // капкан
-  public:
-      virtual ~IEnterTrigger() = default;
-      virtual void onEnter(const Unit& unit, TurnContext& ctx) = 0;
-  };
-  ```
-
-  При добавлении свойства `Map` раскладывает его по спискам этих интерфейсов.
-- Хуки получают юнита, поэтому летающих можно отсекать по тегу `flying`.
-- В Core только механизм и реализация по умолчанию; конкретных клеток пока нет.
+- `Map` — размер и разреженная занятость клеток юнитами с `occupiesCell`.
+- Свойств клеток (болото, капкан) нет: ни одному юниту из задания и «Планов» они не
+  нужны. Как их добавить, когда появится потребитель, — KNOWN_ISSUES.md, п. 12.
 
 ### 4.9 Взаимодействия: таргетинг и применение эффекта
+
+Почему отбор целей и применение воздействий в Core —
+[ADR 0005](docs/adr/0005-targeting-and-effects-in-core.md); почему урон и лечение —
+закрытый набор операций — [ADR 0006](docs/adr/0006-world-rules-in-core.md).
 
 Любое воздействие на юнита — урон, лечение, статус — описывается `TargetSpec`:
 
@@ -321,9 +340,9 @@ struct TargetSpec {
 | Ось | Значения | Кто проверяет |
 |---|---|---|
 | намерение `Intent` (Core) | `Hostile`, `Beneficial` | правила цели: «ближняя атака запрещена» |
-| операция `Effect` (Core) | `Damage`, `Heal`, `Status` | `Targeting` (для `Damage` и `Heal` нужен `Health`); модификаторы: «запрет лечения» |
+| операция `Effect` (Core) | `Damage`, `Heal`, `Status` | `Targeting` (для `Damage` и `Heal` нужен `Health`) |
 | способ доставки (теги) | `melee`, `ranged`, `area` | правила цели: иммунитет Ворона к ближнему бою |
-| тип воздействия (теги) | `physical`, `magic`, `fire`, `explosion`, `heal` | модификаторы: щиты, резисты, иммунитеты |
+| тип воздействия (теги) | `physical`, `magic`, `fire`, `explosion`, `heal` | правила цели: иммунитеты (запрет `debuff` с тегом `fire`) |
 
 - `Intent` и `Effect` — enum в Core: значений мало, на них держатся правила.
   Ось `Intent` не растёт; новая операция (сбивание баффа, отбрасывание) — новое
@@ -355,9 +374,8 @@ struct TargetSpec {
   │ 1. Отбор: ctx.targeting().select(source, spec)      // spec = attack(...), heal(...)…
   │      └─ правила цели (ITargetRule): разрешить / запретить / изменить дистанцию
   │ 2. Применение: ctx.effects().apply(Hit{spec, source, target, amount})
-  │      └─ модификаторы цели (IHitModifier) по приоритету меняют amount
   │ 3. Результат: изменение Health + событие (UnitAttacked / UnitHealed)
-  │ 4. Вторичные эффекты: ctx.effects().applyStatus(target, debuff({fire}, …), Burning{…})
+  │ 4. Вторичные эффекты: ctx.effects().applyStatus(self, *target, debuff({...}, …), std::make_unique<Статус>(…))
 ```
 
 ```cpp
@@ -366,14 +384,6 @@ public:
     virtual ~ITargetRule() = default;
     // nullopt — эту цель таким способом выбрать нельзя
     virtual std::optional<DistanceRange> adjust(const TargetSpec& incoming, DistanceRange range) const = 0;
-};
-
-class IHitModifier {
-public:
-    virtual ~IHitModifier() = default;
-    virtual int priority() const = 0;
-    virtual void modify(Hit& hit) = 0;  // может уменьшить amount до 0;
-                                        // может менять только своё состояние (остаток щита)
 };
 ```
 
@@ -390,22 +400,41 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 
 - `Hit` берёт `Intent` и `Effect` из своего `TargetSpec`; отдельного поля «вид удара»
   нет, поэтому две записи одного и того же не разойдутся.
-- Правила и модификаторы берутся из компонентов и статусов **цели**. Поэтому новый
-  иммунитет добавляется в цель, а код атакующих не меняется.
+- Правила берутся из компонентов и статусов **цели**. Поэтому новый иммунитет
+  добавляется в цель, а код атакующих не меняется.
 - Юнит без `Health` целью `Damage` и `Heal` не бывает: `Targeting` отфильтровывает
   его сам. Поэтому мина «не может быть атакована» без отдельного правила.
-- `UNIT_ATTACKED` содержит итоговый урон после модификаторов и HP цели после удара
-  (не меньше 0).
+- `apply` и `applyStatus` проверяют цель тем же `canTarget`, что и `Targeting`.
+  Обойти правила цели, собрав `Hit` в обход отбора, нельзя: `apply` на такой цели —
+  `std::logic_error` (это баг действия), `applyStatus` — `false` (правила цели могут
+  запретить статус, это нормальный исход).
+- `UNIT_ATTACKED` содержит урон и HP цели после удара (не меньше 0).
+- Модификаторов удара (щит, резист, броня) нет: юнитам из задания и «Планов» они не
+  нужны. Это осознанное решение, а не недосмотр — KNOWN_ISSUES.md, п. 12.
 
 ### 4.10 Статусы
 
-Статус — компонент юнита со сроком жизни (горение, щит, замедление). Статус может:
-- реализовывать `ITargetRule` и/или `IHitModifier`;
-- ставить себя в `Scheduler` (периодический урон в фазе Scheduled).
+Статус — компонент юнита со сроком жизни или бессрочный (флаг, бафф, иммунитет).
+Это точка расширения для механик, которые меняют не HP, а состояние юнита. Статус может
+реализовывать `ITargetRule` — запретить выбирать юнита целью или изменить дистанцию.
+Класс статуса объявляется `final`: хранилище ищет компонент по точному типу (п. 4.13).
 
-Статус накладывается через `ctx.effects().applyStatus(target, spec, status)`, где
+Статус накладывается через `ctx.effects().applyStatus(source, target, spec, status)`, где
 `spec` — `buff(...)` или `debuff(...)`. Поэтому правила цели могут его запретить
-(иммунитет к горению — запрет `debuff` с тегом `fire`). Истёкшие статусы снимаются в фазе Cleanup.
+(иммунитет — запрет `debuff` с нужным тегом). Истёкшие статусы снимаются в фазе Cleanup.
+
+Чего статусом пока не сделать — ни одному юниту из задания и «Планов» это не нужно
+(KNOWN_ISSUES.md, п. 12):
+- периодический урон (горение): урон идёт через `Interaction::apply`, а он требует,
+  чтобы источник был в мире и цель была в пределах его дистанции;
+- ограничение по сроку, от которого зависит конец симуляции (невидимость, оглушение):
+  снятие статуса не считается активностью, и симуляция может остановиться «пустым
+  тиком» раньше, чем статус спадёт. Оглушению вдобавок нужна проверка перед ходом —
+  в Core её нет.
+
+Статус каждого типа на юните один: повторное наложение заменяет старый экземпляр
+новым (SPECIFICATION.md, п. 5.3). Продление срока и стаки появятся вместе с первой
+механикой, которой они нужны.
 
 ### 4.11 События
 
@@ -414,10 +443,13 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 - События Core: `MapCreated`, `UnitSpawned`, `UnitMoved`, `MarchStarted`,
   `MarchEnded`, `UnitAttacked`, `UnitHealed`, `UnitDied`.
 - Features при необходимости объявляют свои события и публикуют их через
-  `ctx.events()`.
+  `ctx.publish(event)`.
 - Перевод доменного события в `io::Events` — адаптер в `App/Output`, один файл на
-  событие фичи (события Core — в одном файле `CoreEventsOutput`, его меняет
-  владелец Core). Адаптер регистрируется сам (`SW_REGISTER_OUTPUT`, п. 5.4).
+  событие фичи. События Core из исходного формата — в одном файле `CoreEventsOutput`,
+  его меняет владелец Core. Событие Core, которое попадает в вывод вместе с фичей
+  (`UnitHealed` с Лекарем), получает отдельный файл этой фичи (`UnitHealedOutput.cpp`):
+  разработчик Лекаря не ждёт владельца Core. Адаптер регистрируется сам
+  (`SW_REGISTER_OUTPUT`, п. 5.4).
 - `App/Output/EventBridge` подписывается на `EventBus` через зарегистрированные
   адаптеры и передаёт результат в `EventLog` вместе с номером тика. Два адаптера
   для одного типа события — ошибка при старте.
@@ -438,56 +470,31 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 | `IAction::tryExecute` | `false` — не вызывал изменяющих методов `TurnContext` (проверяется всегда, п. 4.6). `true` — действие выполнено, даже если эффект равен 0 |
 | `IAction::requirements` | перечисляет все компоненты, которые действие читает у `self`; проверяется в `UnitBuilder::build` |
 | `ITargetRule::adjust` | чистая функция без побочных эффектов. Явно проверяет нужную ось: правило про атаки проверяет `intent == Hostile`, а не только теги доставки. Правила цели применяются по очереди в порядке добавления, каждое получает дистанцию после предыдущего; `nullopt` любого правила — запрет |
-| `IHitModifier::modify` | явно проверяет `effect`: резист к `magic` уменьшает только `Damage`, запрет лечения обнуляет только `Heal`. `amount` не становится отрицательным (Core проверяет). Меняет только `Hit` и своё состояние. Применяются по возрастанию `priority()`, при равенстве — в порядке добавления |
-| `IMoveCostModifier::moveCost` | чистая функция; результат ≥ 1 |
-| `IEnterTrigger::onEnter` | меняет мир только через `TurnContext` |
+| `Interaction::apply` | цель проходит `Targeting::canTarget` для этого `spec` (правила цели, дистанция, `Health`), иначе `std::logic_error` |
+| задача `Scheduler` | захватывает только значения и `UnitId`, а не указатели и ссылки на юнитов, действия и статусы: к сроку задачи их могли удалить или заменить. Юнитов находит через `ctx.query().find()` и сама обрабатывает их отсутствие. Задачи не отменяются, удаление источника их не снимает |
 | юнит без `Health` | не бывает целью `Effect::Damage` / `Effect::Heal`; любой код Core обязан работать с таким юнитом |
+| компонент, статус | хранится по точному динамическому типу; класс объявляется `final`, иначе наследник не виден через `has<База>()` |
+| `TurnContext::requestRemoval` | только для юнита без `Health`. Юнит с `Health` уходит с поля только через смерть, то есть через отбор целей, правила цели и `UNIT_DIED`; `requestRemoval` на нём — `std::logic_error` |
 | юнит без `Movement` | никогда не меняет позицию: `MovementService` отказывает в перемещении, кто бы его ни запросил |
 
 ## 5. Features
 
 ### 5.1 Юниты из задания
 
-```cpp
-// Features/Units/Hunter.hpp — ничего не знает про IO
-struct HunterSpec {
-    UnitId id; Position pos;
-    int64_t hp, agility, strength, range;     // в домене числа знаковые (п. 2)
-};
+Код здесь не копируется, чтобы не расходиться с ним; образец — Охотник:
 
-// Проверяет статы > 0 и range >= 2; возвращает ВСЕ найденные ошибки,
-// без номеров строк (их добавляет App)
-Result<Unit> makeHunter(const HunterSpec& s) {
-    Diagnostics errors;
-    requirePositive(errors, "hp", s.hp);
-    requirePositive(errors, "agility", s.agility);
-    requirePositive(errors, "strength", s.strength);
-    if (s.range < 2)
-        errors.add("hunter.invalid_range", "range must be >= 2, got " + std::to_string(s.range));
-    if (!errors.empty())
-        return errors;
-
-    return UnitBuilder(s.id, "Hunter", s.pos)          // occupiesCell = true по умолчанию
-        .with<Health>(s.hp).with<Agility>(s.agility).with<Strength>(s.strength)
-        .with<Range>(s.range)
-        .with<Movement>(/*speed*/ 1)
-        .action<RangedAttack>(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})
-        .action<MeleeAttack>(stat<Strength>)
-        .action<MarchStep>()
-        .build();                                       // проверка требований действий
-}
-```
-
-```cpp
-// App/Bindings/HunterBinding.cpp — единственное место, где встречаются IO и фича
-void bindHunter(CommandRegistry& r) {
-    r.on<io::SpawnHunter>([](const io::SpawnHunter& c, SetupContext& ctx) {
-        return ctx.spawn(features::makeHunter(
-            {c.unitId, {c.x, c.y}, c.hp, c.agility, c.strength, c.range}));
-    });
-}
-SW_REGISTER_BINDING(bindHunter);
-```
+- [Features/Units/Hunter.hpp](src/Features/Units/Hunter.hpp) — `HunterSpec`: id, позиция
+  и статы в `int64_t` (в домене числа знаковые, п. 2). Про IO фича ничего не знает.
+- [Features/Units/Hunter.cpp](src/Features/Units/Hunter.cpp) — `makeHunter`: проверяет
+  статы > 0 и `range >= 2` и возвращает **все** найденные ошибки без номеров строк (их
+  добавляет App). При ошибках — `builder.reject(errors)`: заявка на спавн всё равно
+  несёт id, позицию и занятость клетки, и `SetupContext` проверит их тоже. Без ошибок —
+  сборка через `UnitBuilder`: `Health`, `Agility`, `Strength`, `Range`, `Movement(1)`,
+  behaviour = [`RangedAttack(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})`,
+  `MeleeAttack(stat<Strength>)`, `MarchStep`]; `spawnRequest()` проверяет требования действий.
+- [App/Bindings/HunterBinding.cpp](src/App/Bindings/HunterBinding.cpp) — единственное
+  место, где встречаются IO и фича: `io::SpawnHunter` → `HunterSpec` → `setup.spawn(...)`,
+  в конце файла `SW_REGISTER_BINDING(...)`.
 
 Мечник собирается так же: `SwordsmanSpec` → `makeSwordsman`, behaviour =
 [`MeleeAttack(stat<Strength>)`, `MarchStep`].
@@ -507,12 +514,13 @@ SW_REGISTER_BINDING(bindHunter);
 |---|---|
 | **Башня** | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, distance(2, 5))`. `MARCH` на неё — ошибка валидации |
 | **Лекарь** | `Health`, `Spirit`, `Movement(1)`; `Heal(stat<Spirit>)` с `heal({heal}, {0,2})`, `MarchStep` |
-| **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)`, `MarchStep` |
+| **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)` с дистанцией `{0,1}`, `MarchStep` |
 | **Мина** | `occupiesCell(false)`, без `Health` (поэтому не бывает целью, п. 4.9), без `Movement` (статична, `MARCH` на неё — ошибка валидации); `MineFuse(power, trigger 2, blast 3)` |
 
 **Мина по тикам.**
-- Тик N, Main: `MineFuse` через `ctx.query()` видит юнита на расстоянии 0…2
-  (включая летающих) → мина взводится и ставит взрыв в `ctx.scheduler()` на тик N+1.
+- Тик N, Main: `MineFuse` через `ctx.query()` видит юнита с `Health` на расстоянии 0…2
+  (включая летающих; другие мины не в счёт — взрыв их не ранит) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача
+  захватывает id мины, а не указатель на неё или на действие (контракт, п. 4.13).
   Это выполненное действие. Взведённая мина больше не действует.
 - Тик N+1, Scheduled: взрыв. `targeting().select(mine, attack({area, explosion}, {0,3}))` →
   `effects().apply` каждой цели (включая летающих: правило `Flying` не трогает `area`) → `UNIT_ATTACKED` с
@@ -525,18 +533,22 @@ SW_REGISTER_BINDING(bindHunter);
 Лекаря. Случайная цель → `effects().apply(Hit{heal({heal}, {0,2}), self, target, spirit})`.
 Дистанция 0 возможна: на клетке Лекаря может оказаться юнит, не занимающий клетку.
 Правило `Flying` лечение не трогает: у него `Intent::Beneficial`. HP ограничено
-MaxHp (равно HP при спавне). Если на цели запрет лечения (`IHitModifier` обнуляет
-amount), лечение всё равно считается выполненным действием с суммой 0. Если целей
-нет — `MarchStep`. Событие `UNIT_HEALED` добавится в IO вместе с Лекарем.
+MaxHp (равно HP при спавне), в `UnitHealed` — фактически восстановленное HP. Если целей
+нет — `MarchStep`. Событие `UNIT_HEALED` добавится в IO вместе с Лекарем: DTO в
+`IO/Events` и отдельный адаптер `App/Output/UnitHealedOutput.cpp` (п. 4.11).
+
+**Ворон.** «Удар когтем» бьёт юнита в соседней клетке или на своей: Ворон не занимает
+клетку и может стоять на клетке цели, а `{1,1}` её бы не достал. Дистанция `{0,1}`
+задаётся параметром `MeleeAttack`, который появится вместе с Вороном; Core не меняется.
 
 ### 5.3 Как добавить новый юнит
 
 1. `IO/Commands/SpawnX.hpp` — DTO команды (формат ввода).
 2. `Features/Units/X.{hpp,cpp}` — `XSpec`, его проверка и сборка юнита
-   (`Result<Unit> makeX(const XSpec&)`); при необходимости новые статы, действия,
+   (`SpawnRequest makeX(const XSpec&)`); при необходимости новые статы, действия,
    теги, статусы в `Features/Common` или рядом с юнитом.
 3. `App/Bindings/XBinding.cpp` — перевод `io::SpawnX` → `XSpec`, без логики,
-   в конце файла `SW_REGISTER_BINDING(bindX);`.
+   в конце файла `SW_REGISTER_BINDING(bindX)`.
 4. Если нужен новый вид события в выводе — DTO в `IO/Events` и
    `App/Output/XEventOutput.cpp` с `SW_REGISTER_OUTPUT(...)`.
 
@@ -554,33 +566,28 @@ using OutputFn  = void (*)(EventBridge&);
 std::vector<BindingFn>& bindingList();
 std::vector<OutputFn>&  outputList();
 
-struct BindingRegistrar { explicit BindingRegistrar(BindingFn fn) { bindingList().push_back(fn); } };
-struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn)   { outputList().push_back(fn); } };
+struct BindingRegistrar { explicit BindingRegistrar(BindingFn fn); };   // bindingList().push_back
+struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn); };     // outputList().push_back
 
+// [[maybe_unused]]: переменную никто не читает, работа — в конструкторе. Без пометки
+// анализаторы IDE предлагают удалить и её, и функцию привязки.
 #define SW_REGISTER_BINDING(fn) \
-    namespace { const ::sw::app::BindingRegistrar SW_UNIQUE_NAME(swBinding_){&fn}; }
+    namespace { [[maybe_unused]] const ::sw::app::BindingRegistrar SW_APP_CONCAT(swBindingRegistrar_, __LINE__){&(fn)}; }
 #define SW_REGISTER_OUTPUT(fn) \
-    namespace { const ::sw::app::OutputRegistrar SW_UNIQUE_NAME(swOutput_){&fn}; }
+    namespace { [[maybe_unused]] const ::sw::app::OutputRegistrar SW_APP_CONCAT(swOutputRegistrar_, __LINE__){&(fn)}; }
 ```
 
 ```cpp
-// App/Application.cpp
-CommandRegistry commands;
-for (BindingFn bind : bindingList()) bind(commands);
-EventBridge bridge(eventLog);
-for (OutputFn bind : outputList()) bind(bridge);
+// App/Application.cpp и App/Scenario/ScenarioRunner.cpp
+CommandRegistry registry;
+for (const BindingFn bind : _options.bindings) bind(registry);   // по умолчанию bindingList()
+EventBridge bridge(bus, log, clock);
+for (const OutputFn bind : outputs) bind(bridge);               // по умолчанию outputList()
 ```
 
-Известные риски и как они закрыты:
-
-| Риск | Решение |
-|---|---|
-| порядок инициализации статиков между файлами | списки — статические переменные внутри функций |
-| линкер выбрасывает «неиспользуемые» файлы со статической регистрацией | `App/Bindings` и `App/Output` компилируются прямо в исполняемый файл (или в OBJECT-библиотеку), никогда не в статическую библиотеку; правило записано комментарием в `CMakeLists.txt` |
-| порядок регистрации зависит от порядка линковки | `CommandRegistry` хранит команды по имени, `EventBridge` — по типу события; порядок ни на что не влияет |
-| две регистрации одной команды или события | ошибка при старте с именем команды / типа события (баг, код выхода 3) |
-| глобальное состояние мешает тестам | глобально хранится только список указателей на функции; `CommandRegistry` и `EventBridge` App создаёт сам, тест может собрать свои |
-| забыли зарегистрировать адаптер | команда в сценарии даёт понятную ошибку `parse.unknown_command`, событие — не выводится; ловится тестом сценария |
+Почему саморегистрация, а не общий список, и как закрыты её риски (порядок
+инициализации статиков, выброс файлов линкером, дубли регистраций) —
+[ADR 0004](docs/adr/0004-self-registration-of-adapters.md).
 
 ## 6. Загрузка, валидация, ошибки
 
@@ -601,7 +608,8 @@ for (OutputFn bind : outputList()) bind(bridge);
    (тик 1), затем симуляция.
 
 Два прохода вместо буферизации событий: проще, а установка не использует
-случайность, поэтому оба прохода дают одинаковый мир.
+случайность, поэтому оба прохода дают одинаковый мир
+([ADR 0008](docs/adr/0008-whole-scenario-validation.md)).
 
 ### 6.2 Что проверяется
 
@@ -644,51 +652,44 @@ error: scenario.txt:11: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2,
 | нарушенный инвариант или контракт (баг) | исключение `std::logic_error` с контекстом, ловится в `Application` | 3 |
 | нормальное завершение, в том числе по лимиту тиков | — | 0 |
 
-## 7. Рассмотренные и отклонённые варианты
+## 7. Архитектурные решения
 
-- **A. Наследование + виртуальные хуки в базовом `Unit`.** Каждая новая механика
-  (не занимает клетку, иммунитет, модификатор дистанции, нет HP) добавляет метод в
-  базовый класс в Core — владелец Core становится узким местом. Ближний бой
-  Мечника, Охотника и Ворона дублируется или уходит в глубокую иерархию.
-- **C. Полноценный ECS.** Правило «одно действие за ход, по порядку создания, по
-  приоритету» плохо ложится на системы по компонентам: всё равно нужна система
-  выбора действия для каждого юнита, то есть вариант B с лишней церемонией.
+Решения с контекстом, рассмотренными вариантами и последствиями — в
+[docs/adr](docs/adr/README.md):
+
+| ADR | Решение | Где в этом документе |
+|---|---|---|
+| [0001](docs/adr/0001-unit-components-and-behaviour.md) | юнит — компоненты и список действий по приоритету (против наследования и ECS) | 4.1, 4.3 |
+| [0002](docs/adr/0002-core-independent-of-io.md) | Core не зависит от IO, адаптеры в App | 2, 4.11 |
+| [0003](docs/adr/0003-unit-died-immediately.md) | `UNIT_DIED` сразу, мёртвый не действует, удаление в Cleanup | 4.5 |
+| [0004](docs/adr/0004-self-registration-of-adapters.md) | саморегистрация адаптеров | 5.4 |
+| [0005](docs/adr/0005-targeting-and-effects-in-core.md) | отбор целей и применение воздействий в Core; оси `Intent` и `Effect` | 4.9 |
+| [0006](docs/adr/0006-world-rules-in-core.md) | правила мира из задания — HP со смертью и марш — в Core; урон и лечение — закрытый набор | 1, 4.1, 4.7, 4.9 |
+| [0007](docs/adr/0007-no-mechanisms-without-consumers.md) | механизм в Core — только с потребителем | 1, 4.8, 4.10 |
+| [0008](docs/adr/0008-whole-scenario-validation.md) | проверка сценария целиком | 6 |
+| [0009](docs/adr/0009-tick-limit-and-action-contract.md) | лимит тиков и проверка контракта `IAction` | 4.6, 4.13 |
 
 ## 8. Принятые решения по правилам
 
+Решения о поведении, которые не тянут на отдельный ADR. Подробности и граничные
+случаи — в [SPECIFICATION.md](SPECIFICATION.md), раздел 0.
+
 - Команды — в тике 1, ходы — с тика 2.
-- `UNIT_DIED` — сразу; мёртвый не действует; убирается в Cleanup.
 - Шаг марша обходит занятую клетку через другую соседнюю, приближающую к цели;
-  если такой нет — стоит.
+  если такой нет — стоит. Повторный `MARCH` — в очередь.
 - Конец: ≤ 1 юнита, или пустой тик при пустом `Scheduler`, или 30 000 тиков.
-- Расстояние — Чебышёв. Лог в `main.cpp` иллюстративный (на тиках 7–8 выстрел
+- Расстояние — Чебышёв. Лог из исходного `main.cpp` (его вывод сохранён в
+  `docs/original_main_output.txt`) иллюстративный (на тиках 7–8 выстрел
   на дистанцию 5 при `range 4`).
-- Повторный `MARCH` — в очередь.
-- Мина считается юнитом; взводится от летающих, взрыв задевает летающих.
-- Лекарь лечит только юнитов с неполным HP; лечение под запретом — выполненное
-  действие с суммой 0.
+- Мина считается юнитом; взводится только от юнитов с `Health` (в том числе летающих,
+  но не от других мин), взрыв задевает летающих.
+- Удар когтем Ворона достаёт и до своей клетки (`{0,1}`).
+- Лекарь лечит только юнитов с неполным HP и себя не лечит.
 - Выстрелу Охотника мешают только живые юниты, занимающие клетки; мёртвый сосед
   до уборки не мешает.
-- Лекарь себя не лечит.
-- Features не зависят от IO. DTO команд остаются в IO (это формат ввода), перевод
-  DTO → спецификация фичи — в `App/Bindings`. Перенос DTO в App отклонён: App
-  зависит от Features, и обратная зависимость дала бы цикл.
-- Адаптеры команд и событий регистрируются сами (`SW_REGISTER_BINDING`,
-  `SW_REGISTER_OUTPUT`), теги объявляются в фичах. Общих списков, которые правят
-  все разработчики, нет — нет и постоянных merge-конфликтов. Рассмотренные
-  альтернативы: явный отсортированный список (конфликты реже, но остаются) и
-  генерация списка CMake по именам файлов (без статиков, но с соглашением об
-  именах и логикой в CMake).
 - Ограничения Ворона действуют только на атаки: правила цели проверяют
-  `Intent::Hostile`, поэтому лечение и баффы Ворона не затрагивают. Намерение
-  (`Intent`) и операция (`Effect`) — две раздельные оси, а не один enum
-  `{Attack, Heal, Buff, Debuff}`.
-- Числа в домене знаковые (`int64_t`), `uint32_t` остаётся только в IO; переводы —
-  в App. Карта хранит занятость разреженно: формат допускает карту до
-  4294967295 × 4294967295, лимит размера не вводится.
-- Решения уровня поведения модулей (кто может быть целью, движение за тик, ошибки-
-  последствия, пустой сценарий и др.) — в [SPECIFICATION.md](SPECIFICATION.md), раздел 0.
+  `Intent::Hostile`, поэтому лечение и баффы Ворона не затрагивают.
 
 ## 9. Открытые вопросы
 
-Нет. Все вопросы закрыты, решения — в разделе 8.
+Нет. Все вопросы закрыты: решения — в разделе 8 и в [docs/adr](docs/adr/README.md).
