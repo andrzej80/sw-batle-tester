@@ -149,8 +149,11 @@ docs/adr/         архитектурные решения
 
 Код Core обязан работать с юнитом без любого из этих компонентов (контракт, п. 4.13).
 
-Позицию и `occupiesCell` нельзя менять напрямую: позиция меняется только через
-`movement()` (п. 4.3), чтобы занятость клеток в `Map` всегда была согласована.
+Позиция должна совпадать с занятостью клеток в `Map`. Фичи изменить её не могут: им
+доступен только `const Unit&` (п. 4.3), и это проверяет компилятор. Внутри Core позицию
+меняет только `MovementService` — это соглашение, и охраняет его владелец Core.
+Структурной гарантии (единственный владелец позиции — `Map`) пока нет: второго кода,
+который двигает юнитов, в Core нет, а цена переделки — все чтения `unit.position()`.
 
 ### 4.2 Мир и его части
 
@@ -214,7 +217,7 @@ public:
     Interaction& effects();                     // урон, лечение, наложение статуса
     MovementService& movement();                // перемещение с проверкой занятости и событиями
     void schedule(Tick at, UnitId source, Scheduler::Task task);   // отложенный эффект
-    void requestRemoval(UnitId);                // удаление не через HP
+    void requestRemoval(UnitId);                // удаление не через HP, только юнита без Health
     IRandom& random();
     template <class E> void publish(const E&);  // событие фичи
 };
@@ -241,7 +244,8 @@ public:
 - Порядок фазы Main — снимок порядка создания на начало фазы. Юниты, созданные
   во время тика (на будущее), действуют со следующего тика.
 - `Scheduler` — единый механизм отложенных эффектов: «в тик T выполнить эффект от
-  источника S». Периодические эффекты (горение) сами ставят себя на следующий тик.
+  источника S». Его потребитель — взрыв Мины. Периодического урона (горения) нет: его
+  нельзя сделать без правки Core (KNOWN_ISSUES.md, п. 12).
 
 ### 4.5 Смерть и удаление
 
@@ -252,6 +256,8 @@ public:
   быть целью и не учитывается в запросах «кто рядом».
 - Клетку мёртвый занимает до фазы Cleanup, где он убирается с поля.
 - `requestRemoval(unit)` — удаление не через HP (мина после взрыва); тоже в фазе Cleanup.
+  Только для юнита без `Health`: иначе действие могло бы убрать юнита мимо правил цели
+  и без `UNIT_DIED` (контракт, п. 4.13).
 
 ### 4.6 Конец симуляции
 
@@ -369,7 +375,7 @@ struct TargetSpec {
   │      └─ правила цели (ITargetRule): разрешить / запретить / изменить дистанцию
   │ 2. Применение: ctx.effects().apply(Hit{spec, source, target, amount})
   │ 3. Результат: изменение Health + событие (UnitAttacked / UnitHealed)
-  │ 4. Вторичные эффекты: ctx.effects().applyStatus(self, *target, debuff({fire}, …), std::make_unique<Burning>(…))
+  │ 4. Вторичные эффекты: ctx.effects().applyStatus(self, *target, debuff({...}, …), std::make_unique<Статус>(…))
 ```
 
 ```cpp
@@ -408,14 +414,23 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 
 ### 4.10 Статусы
 
-Статус — компонент юнита со сроком жизни или бессрочный (оглушение, горение, бафф).
-Это точка расширения для механик, которые меняют не HP, а состояние юнита. Статус может:
-- реализовывать `ITargetRule` (например, «невидимость» запрещает выбирать юнита целью);
-- ставить себя в `Scheduler` (периодический урон в фазе Scheduled).
+Статус — компонент юнита со сроком жизни или бессрочный (флаг, бафф, иммунитет).
+Это точка расширения для механик, которые меняют не HP, а состояние юнита. Статус может
+реализовывать `ITargetRule` — запретить выбирать юнита целью или изменить дистанцию.
+Класс статуса объявляется `final`: хранилище ищет компонент по точному типу (п. 4.13).
 
 Статус накладывается через `ctx.effects().applyStatus(source, target, spec, status)`, где
 `spec` — `buff(...)` или `debuff(...)`. Поэтому правила цели могут его запретить
-(иммунитет к горению — запрет `debuff` с тегом `fire`). Истёкшие статусы снимаются в фазе Cleanup.
+(иммунитет — запрет `debuff` с нужным тегом). Истёкшие статусы снимаются в фазе Cleanup.
+
+Чего статусом пока не сделать — ни одному юниту из задания и «Планов» это не нужно
+(KNOWN_ISSUES.md, п. 12):
+- периодический урон (горение): урон идёт через `Interaction::apply`, а он требует,
+  чтобы источник был в мире и цель была в пределах его дистанции;
+- ограничение по сроку, от которого зависит конец симуляции (невидимость, оглушение):
+  снятие статуса не считается активностью, и симуляция может остановиться «пустым
+  тиком» раньше, чем статус спадёт. Оглушению вдобавок нужна проверка перед ходом —
+  в Core её нет.
 
 Статус каждого типа на юните один: повторное наложение заменяет старый экземпляр
 новым (SPECIFICATION.md, п. 5.3). Продление срока и стаки появятся вместе с первой
@@ -430,8 +445,11 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 - Features при необходимости объявляют свои события и публикуют их через
   `ctx.publish(event)`.
 - Перевод доменного события в `io::Events` — адаптер в `App/Output`, один файл на
-  событие фичи (события Core — в одном файле `CoreEventsOutput`, его меняет
-  владелец Core). Адаптер регистрируется сам (`SW_REGISTER_OUTPUT`, п. 5.4).
+  событие фичи. События Core из исходного формата — в одном файле `CoreEventsOutput`,
+  его меняет владелец Core. Событие Core, которое попадает в вывод вместе с фичей
+  (`UnitHealed` с Лекарем), получает отдельный файл этой фичи (`UnitHealedOutput.cpp`):
+  разработчик Лекаря не ждёт владельца Core. Адаптер регистрируется сам
+  (`SW_REGISTER_OUTPUT`, п. 5.4).
 - `App/Output/EventBridge` подписывается на `EventBus` через зарегистрированные
   адаптеры и передаёт результат в `EventLog` вместе с номером тика. Два адаптера
   для одного типа события — ошибка при старте.
@@ -455,6 +473,8 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 | `Interaction::apply` | цель проходит `Targeting::canTarget` для этого `spec` (правила цели, дистанция, `Health`), иначе `std::logic_error` |
 | задача `Scheduler` | захватывает только значения и `UnitId`, а не указатели и ссылки на юнитов, действия и статусы: к сроку задачи их могли удалить или заменить. Юнитов находит через `ctx.query().find()` и сама обрабатывает их отсутствие. Задачи не отменяются, удаление источника их не снимает |
 | юнит без `Health` | не бывает целью `Effect::Damage` / `Effect::Heal`; любой код Core обязан работать с таким юнитом |
+| компонент, статус | хранится по точному динамическому типу; класс объявляется `final`, иначе наследник не виден через `has<База>()` |
+| `TurnContext::requestRemoval` | только для юнита без `Health`. Юнит с `Health` уходит с поля только через смерть, то есть через отбор целей, правила цели и `UNIT_DIED`; `requestRemoval` на нём — `std::logic_error` |
 | юнит без `Movement` | никогда не меняет позицию: `MovementService` отказывает в перемещении, кто бы его ни запросил |
 
 ## 5. Features
@@ -494,12 +514,12 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 |---|---|
 | **Башня** | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, distance(2, 5))`. `MARCH` на неё — ошибка валидации |
 | **Лекарь** | `Health`, `Spirit`, `Movement(1)`; `Heal(stat<Spirit>)` с `heal({heal}, {0,2})`, `MarchStep` |
-| **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)`, `MarchStep` |
+| **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)` с дистанцией `{0,1}`, `MarchStep` |
 | **Мина** | `occupiesCell(false)`, без `Health` (поэтому не бывает целью, п. 4.9), без `Movement` (статична, `MARCH` на неё — ошибка валидации); `MineFuse(power, trigger 2, blast 3)` |
 
 **Мина по тикам.**
-- Тик N, Main: `MineFuse` через `ctx.query()` видит юнита на расстоянии 0…2
-  (включая летающих) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача
+- Тик N, Main: `MineFuse` через `ctx.query()` видит юнита с `Health` на расстоянии 0…2
+  (включая летающих; другие мины не в счёт — взрыв их не ранит) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача
   захватывает id мины, а не указатель на неё или на действие (контракт, п. 4.13).
   Это выполненное действие. Взведённая мина больше не действует.
 - Тик N+1, Scheduled: взрыв. `targeting().select(mine, attack({area, explosion}, {0,3}))` →
@@ -513,7 +533,13 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 Лекаря. Случайная цель → `effects().apply(Hit{heal({heal}, {0,2}), self, target, spirit})`.
 Дистанция 0 возможна: на клетке Лекаря может оказаться юнит, не занимающий клетку.
 Правило `Flying` лечение не трогает: у него `Intent::Beneficial`. HP ограничено
-MaxHp (равно HP при спавне). Если целей нет — `MarchStep`. Событие `UNIT_HEALED` добавится в IO вместе с Лекарем.
+MaxHp (равно HP при спавне), в `UnitHealed` — фактически восстановленное HP. Если целей
+нет — `MarchStep`. Событие `UNIT_HEALED` добавится в IO вместе с Лекарем: DTO в
+`IO/Events` и отдельный адаптер `App/Output/UnitHealedOutput.cpp` (п. 4.11).
+
+**Ворон.** «Удар когтем» бьёт юнита в соседней клетке или на своей: Ворон не занимает
+клетку и может стоять на клетке цели, а `{1,1}` её бы не достал. Дистанция `{0,1}`
+задаётся параметром `MeleeAttack`, который появится вместе с Вороном; Core не меняется.
 
 ### 5.3 Как добавить новый юнит
 
@@ -543,10 +569,12 @@ std::vector<OutputFn>&  outputList();
 struct BindingRegistrar { explicit BindingRegistrar(BindingFn fn); };   // bindingList().push_back
 struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn); };     // outputList().push_back
 
+// [[maybe_unused]]: переменную никто не читает, работа — в конструкторе. Без пометки
+// анализаторы IDE предлагают удалить и её, и функцию привязки.
 #define SW_REGISTER_BINDING(fn) \
-    namespace { const ::sw::app::BindingRegistrar SW_APP_CONCAT(swBindingRegistrar_, __LINE__){&(fn)}; }
+    namespace { [[maybe_unused]] const ::sw::app::BindingRegistrar SW_APP_CONCAT(swBindingRegistrar_, __LINE__){&(fn)}; }
 #define SW_REGISTER_OUTPUT(fn) \
-    namespace { const ::sw::app::OutputRegistrar SW_APP_CONCAT(swOutputRegistrar_, __LINE__){&(fn)}; }
+    namespace { [[maybe_unused]] const ::sw::app::OutputRegistrar SW_APP_CONCAT(swOutputRegistrar_, __LINE__){&(fn)}; }
 ```
 
 ```cpp
@@ -653,7 +681,9 @@ error: scenario.txt:11: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2,
 - Расстояние — Чебышёв. Лог из исходного `main.cpp` (его вывод сохранён в
   `docs/original_main_output.txt`) иллюстративный (на тиках 7–8 выстрел
   на дистанцию 5 при `range 4`).
-- Мина считается юнитом; взводится от летающих, взрыв задевает летающих.
+- Мина считается юнитом; взводится только от юнитов с `Health` (в том числе летающих,
+  но не от других мин), взрыв задевает летающих.
+- Удар когтем Ворона достаёт и до своей клетки (`{0,1}`).
 - Лекарь лечит только юнитов с неполным HP и себя не лечит.
 - Выстрелу Охотника мешают только живые юниты, занимающие клетки; мёртвый сосед
   до уборки не мешает.

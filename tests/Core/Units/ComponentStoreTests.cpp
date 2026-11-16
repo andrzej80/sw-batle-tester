@@ -77,9 +77,9 @@ TEST(ComponentStore_accepts_components_known_only_at_runtime)
 {
 	ComponentStore store;
 	std::unique_ptr<sw::core::IComponent> status = std::make_unique<StatusComponent>();
-	store.add(typeid(StatusComponent), std::move(status));
+	store.add(std::move(status));
 
 	CHECK(store.has<StatusComponent>());
 	CHECK_EQ(store.statuses().size(), size_t{1});
-	CHECK_THROWS(store.add(typeid(Strength), nullptr), std::logic_error);
+	CHECK_THROWS(store.add(nullptr), std::logic_error);
 }

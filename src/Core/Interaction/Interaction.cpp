@@ -61,8 +61,10 @@ namespace sw::core
 		}
 		else
 		{
-			health.current = std::min(health.max, health.current + hit.amount);
-			_events.publish(events::UnitHealed{hit.source, hit.target, hit.amount, health.current});
+			// В событие — фактически восстановленное HP, а не запрошенное: лечение ограничено max
+			const int64_t before = health.current;
+			health.current = std::min(health.max, before + hit.amount);
+			_events.publish(events::UnitHealed{hit.source, hit.target, health.current - before, health.current});
 		}
 		_world.activity().markChange();
 	}
@@ -87,7 +89,7 @@ namespace sw::core
 		const Status& incoming = *status;
 		const std::type_index type(typeid(incoming));
 		components.remove(type);
-		components.add(type, std::move(status));
+		components.add(std::move(status));
 		_world.activity().markChange();
 		return true;
 	}

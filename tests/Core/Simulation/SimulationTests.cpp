@@ -2,6 +2,8 @@
 #include "Core/Simulation/SimulationTestHelpers.hpp"
 #include "TestFramework/TestFramework.hpp"
 
+#include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -225,6 +227,23 @@ TEST(Simulation_runs_scheduled_effects_first_and_waits_for_pending_ones)
 		== (Log{"armed at 2", "main at 2", "main at 3", "main at 4", "exploded at 5", "main at 5", "main at 6"}));
 	CHECK_EQ(arena.world.tick(), Tick{6});
 	CHECK(arena.world.units().find(UnitId{1}) == nullptr);
+}
+
+TEST(TurnContext_removes_only_units_without_health)
+{
+	SimArena arena(10, 10);
+	const Unit& soldier = arena.spawn({.id = 1, .position = {0, 0}});
+	const Unit& mine =
+		arena.spawn({.id = 2, .position = {5, 5}, .speed = std::nullopt, .occupiesCell = false, .hp = std::nullopt});
+	const uint64_t changesBefore = arena.world.activity().changes();
+
+	CHECK_THROWS(arena.context().requestRemoval(soldier.id()), std::logic_error);
+	CHECK(!soldier.isRemovalRequested());
+	CHECK_EQ(arena.world.activity().changes(), changesBefore);
+
+	arena.context().requestRemoval(mine.id());
+	CHECK(mine.isRemovalRequested());
+	CHECK(arena.world.activity().changes() > changesBefore);
 }
 
 TEST(Simulation_removes_expired_statuses_in_cleanup)

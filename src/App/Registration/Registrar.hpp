@@ -32,11 +32,13 @@ namespace sw::app
 #define SW_REGISTER_BINDING(fn)                                                                                        \
 	namespace                                                                                                          \
 	{                                                                                                                  \
+		[[maybe_unused]]                                                                                               \
 		const ::sw::app::BindingRegistrar SW_APP_CONCAT(swBindingRegistrar_, __LINE__){&(fn)};                         \
 	}
 
 #define SW_REGISTER_OUTPUT(fn)                                                                                         \
 	namespace                                                                                                          \
 	{                                                                                                                  \
+		[[maybe_unused]]                                                                                               \
 		const ::sw::app::OutputRegistrar SW_APP_CONCAT(swOutputRegistrar_, __LINE__){&(fn)};                           \
 	}

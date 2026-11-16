@@ -25,11 +25,13 @@ namespace sw::core
 			static_assert(std::is_base_of_v<IComponent, T>, "component must derive from IComponent");
 			auto component = std::make_unique<T>(std::forward<Args>(args)...);
 			T& reference = *component;
-			add(typeid(T), std::move(component));
+			add(std::move(component));
 			return reference;
 		}
 
-		void add(std::type_index type, std::unique_ptr<IComponent> component);
+		// Ключ — динамический тип компонента, поэтому разойтись с объектом он не может.
+		// Наследник хранится под своим типом: has<База>() его не видит
+		void add(std::unique_ptr<IComponent> component);
 
 		bool remove(std::type_index type);
 

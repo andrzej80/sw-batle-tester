@@ -16,12 +16,14 @@ namespace sw::core
 		}
 	}
 
-	void ComponentStore::add(std::type_index type, std::unique_ptr<IComponent> component)
+	void ComponentStore::add(std::unique_ptr<IComponent> component)
 	{
 		if (!component)
 		{
 			throw std::logic_error("ComponentStore: null component");
 		}
+		const IComponent& added = *component;
+		const std::type_index type(typeid(added));
 		if (_components.contains(type))
 		{
 			throw std::logic_error("ComponentStore: component " + typeName(*component) + " is already present");

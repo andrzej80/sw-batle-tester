@@ -1,5 +1,6 @@
 #include "TurnContext.hpp"
 
+#include <Core/Units/CoreComponents.hpp>
 #include <Core/Units/Unit.hpp>
 #include <Core/World/World.hpp>
 #include <stdexcept>
@@ -45,6 +46,13 @@ namespace sw::core
 		if (found == nullptr)
 		{
 			throw std::logic_error("TurnContext: requestRemoval of unknown unit " + std::to_string(unit.value));
+		}
+		// Юнит с Health уходит с поля только через смерть: отбор целей, правила цели и UNIT_DIED
+		if (found->has<Health>())
+		{
+			throw std::logic_error(
+				"TurnContext: requestRemoval of unit " + std::to_string(unit.value)
+				+ " which has Health; such a unit leaves the map only by dying");
 		}
 		found->requestRemoval();
 		markChange();

@@ -70,7 +70,8 @@ TEST(Interaction_heal_is_capped_by_max_hp)
 	arena.interaction.apply(healing(2, 1, 5));
 
 	CHECK_EQ(target.get<Health>().current, int64_t{10});
-	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=5 hp=10"}));
+	// В событии — фактически восстановленное HP: 7 → 10, а не запрошенные 5
+	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=3 hp=10"}));
 }
 
 TEST(Interaction_rejects_contract_violations)
