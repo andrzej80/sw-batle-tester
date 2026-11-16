@@ -43,6 +43,11 @@ namespace
 		std::streambuf* _previous;
 	};
 
+	struct EventWithoutOutput
+	{
+		int value;
+	};
+
 	struct Output
 	{
 		Output()
@@ -92,12 +97,29 @@ TEST(CoreEventsOutput_prints_every_core_event_in_the_event_log_format)
 					"[4] MARCH_ENDED unitId=3 x=0 y=0 \n"));
 }
 
-TEST(CoreEventsOutput_does_not_print_events_without_an_output_adapter)
+TEST(EventBridge_does_not_print_events_without_an_output_adapter)
 {
 	Output output;
 	const CoutCapture capture;
-	output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, 3, 7});
+	output.bus.publish(EventWithoutOutput{1});
 	CHECK(capture.text().empty());
+}
+
+TEST(UnitHealedOutput_prints_the_heal_in_the_event_log_format)
+{
+	Output output;
+	const CoutCapture capture;
+	output.tick = 3;
+	output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, 3, 7});
+	CHECK_EQ(capture.text(), std::string("[3] UNIT_HEALED healerUnitId=1 targetUnitId=2 amount=3 targetHp=7 \n"));
+}
+
+TEST(UnitHealedOutput_rejects_values_outside_the_output_format)
+{
+	Output output;
+	const CoutCapture capture;
+	CHECK_THROWS(output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, -1, 7}), std::logic_error);
+	CHECK_THROWS(output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, 1, 4294967296}), std::logic_error);
 }
 
 TEST(CoreEventsOutput_rejects_values_outside_the_output_format)
@@ -113,5 +135,7 @@ TEST(EventBridge_rejects_two_adapters_for_one_event)
 	Output output;
 	CHECK_THROWS(
 		output.bridge.on<events::UnitDied>([](const events::UnitDied&, sw::EventLog&, Tick) {}), std::logic_error);
-	CHECK_THROWS(output.bridge.on<events::UnitHealed>(EventBridge::Output<events::UnitHealed>{}), std::logic_error);
+	CHECK_THROWS(
+		output.bridge.on<events::UnitHealed>([](const events::UnitHealed&, sw::EventLog&, Tick) {}), std::logic_error);
+	CHECK_THROWS(output.bridge.on<EventWithoutOutput>(EventBridge::Output<EventWithoutOutput>{}), std::logic_error);
 }

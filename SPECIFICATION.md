@@ -109,8 +109,7 @@
 
 ## 2. Core / Events
 
-События Core (`sw::core::events`; поля совпадают с `io::Events`, кроме `UnitHealed` —
-его DTO в IO появится вместе с Лекарем):
+События Core (`sw::core::events`; поля совпадают с `io::Events`):
 
 | Событие | Поля |
 |---|---|
@@ -472,13 +471,12 @@ error: <file>: [<code>]: <message>                 — ошибка без ст�
 ### 10.4 Output
 
 - Номер тика события берётся в момент события (`World::tick()`). Два адаптера одного
-  типа события или пустой адаптер — `logic_error`; событие без адаптера не выводится
-  (так сейчас с `UnitHealed`).
+  типа события или пустой адаптер — `logic_error`; событие без адаптера не выводится.
 - Адаптеры: `CoreEventsOutput` — события Core из исходного формата; событие Core,
-  которое попадает в вывод вместе с фичей (`UnitHealed` с Лекарем), — отдельным файлом
-  этой фичи (`UnitHealedOutput.cpp`), правка `CoreEventsOutput` не нужна; команды — `CoreBindings` (`CREATE_MAP`,
-  `MARCH`), `SwordsmanBinding`, `HunterBinding`. Каждый регистрируется сам
-  ([ADR 0004](docs/adr/0004-self-registration-of-adapters.md)).
+  которое попадает в вывод вместе с фичей, — отдельным файлом этой фичи
+  (`UnitHealedOutput.cpp` с Лекарем), правка `CoreEventsOutput` не нужна; команды —
+  `CoreBindings` (`CREATE_MAP`, `MARCH`) и по файлу `XBinding.cpp` на юнит. Каждый
+  регистрируется сам ([ADR 0004](docs/adr/0004-self-registration-of-adapters.md)).
 
 ### 10.5 Переводы типов на границе
 
