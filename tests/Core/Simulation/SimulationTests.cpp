@@ -233,8 +233,8 @@ TEST(TurnContext_removes_only_units_without_health)
 {
 	SimArena arena(10, 10);
 	const Unit& soldier = arena.spawn({.id = 1, .position = {0, 0}});
-	const Unit& mine =
-		arena.spawn({.id = 2, .position = {5, 5}, .speed = std::nullopt, .occupiesCell = false, .hp = std::nullopt});
+	const Unit& mine = arena.spawn(
+		{.id = 2, .position = {5, 5}, .speed = std::nullopt, .occupiesCell = false, .hp = std::nullopt});
 	const uint64_t changesBefore = arena.world.activity().changes();
 
 	CHECK_THROWS(arena.context().requestRemoval(soldier.id()), std::logic_error);
