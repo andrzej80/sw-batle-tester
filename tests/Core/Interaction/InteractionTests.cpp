@@ -73,102 +73,16 @@ TEST(Interaction_heal_is_capped_by_max_hp)
 	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=5 hp=10"}));
 }
 
-TEST(Interaction_heal_ban_turns_heal_into_zero_but_still_publishes_it)
-{
-	Arena arena;
-	arena.spawn({.id = 2, .position = {5, 5}});
-	Unit& target = arena.spawn(
-		{.id = 1,
-		 .position = {6, 5},
-		 .components = [](ComponentStore& components)
-		 {
-			 components.add<HealBan>();
-		 }});
-	target.get<Health>().current = 4;
-
-	arena.interaction.apply(healing(2, 1, 3));
-	arena.interaction.apply(damage(2, 1, 1));
-
-	CHECK_EQ(target.get<Health>().current, int64_t{3});
-	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=0 hp=4", "attacked 2->1 damage=1 hp=3"}));
-}
-
-TEST(Interaction_modifiers_run_by_priority_then_by_order_of_addition)
-{
-	Arena arena;
-	std::vector<std::string> calls;
-	arena.spawn({.id = 2, .position = {5, 5}});
-	arena.spawn(
-		{.id = 1,
-		 .position = {6, 5},
-		 .components = [&](ComponentStore& components)
-		 {
-			 components.add<LoggingModifier<1>>(calls, "late", 2);
-			 components.add<ShieldStatus>();
-		 }});
-
-	arena.interaction.apply(damage(2, 1, 3));
-	CHECK(calls == (std::vector<std::string>{"late"}));
-	CHECK(arena.log == (std::vector<std::string>{"attacked 2->1 damage=0 hp=10"}));
-}
-
-TEST(Interaction_modifiers_with_equal_priority_keep_order_of_addition)
-{
-	Arena arena;
-	std::vector<std::string> calls;
-	arena.spawn({.id = 2, .position = {5, 5}});
-	arena.spawn(
-		{.id = 1,
-		 .position = {6, 5},
-		 .components = [&](ComponentStore& components)
-		 {
-			 components.add<LoggingModifier<1>>(calls, "priority-2", 2);
-			 components.add<LoggingModifier<2>>(calls, "priority-1-added-first", 1);
-			 components.add<StackingPoison>(sw::core::Tick{100});
-			 components.add<LoggingModifier<3>>(calls, "priority-1-added-second", 1);
-		 }});
-
-	arena.interaction.apply(damage(2, 1, 1));
-	CHECK(calls == (std::vector<std::string>{"priority-1-added-first", "priority-1-added-second", "priority-2"}));
-}
-
-TEST(Interaction_shield_keeps_its_state_between_hits)
-{
-	Arena arena;
-	arena.spawn({.id = 2, .position = {5, 5}});
-	Unit& target = arena.spawn(
-		{.id = 1,
-		 .position = {6, 5},
-		 .components = [](ComponentStore& components)
-		 {
-			 components.add<Shield>(3);
-		 }});
-
-	arena.interaction.apply(damage(2, 1, 2));
-	arena.interaction.apply(damage(2, 1, 2));
-
-	CHECK_EQ(target.get<Health>().current, int64_t{9});
-	CHECK(arena.log == (std::vector<std::string>{"attacked 2->1 damage=0 hp=10", "attacked 2->1 damage=1 hp=9"}));
-}
-
 TEST(Interaction_rejects_contract_violations)
 {
 	Arena arena;
 	arena.spawn({.id = 2, .position = {5, 5}});
 	arena.spawn({.id = 1, .position = {6, 5}});
 	arena.spawn({.id = 3, .position = {4, 5}, .hp = std::nullopt});
-	arena.spawn(
-		{.id = 4,
-		 .position = {5, 4},
-		 .components = [](ComponentStore& components)
-		 {
-			 components.add<NegativeModifier>();
-		 }});
 
 	CHECK_THROWS(arena.interaction.apply(damage(2, 1, -1)), std::logic_error);
 	CHECK_THROWS(arena.interaction.apply(damage(2, 3, 1)), std::logic_error);
 	CHECK_THROWS(arena.interaction.apply(damage(2, 99, 1)), std::logic_error);
-	CHECK_THROWS(arena.interaction.apply(damage(2, 4, 1)), std::logic_error);
 	const Hit status{debuff({1, 1}), UnitId{2}, UnitId{1}, 1};
 	CHECK_THROWS(arena.interaction.apply(status), std::logic_error);
 	CHECK(arena.log.empty());
@@ -208,17 +122,16 @@ TEST(Interaction_every_application_is_a_change_of_the_world)
 	CHECK_EQ(arena.world.activity().changes(), before + 3);
 }
 
-TEST(Interaction_status_is_added_and_takes_part_in_later_hits)
+TEST(Interaction_status_is_added_to_the_target)
 {
 	Arena arena;
 	const Unit& source = arena.spawn({.id = 2, .position = {5, 5}});
 	const Unit& target = arena.spawn({.id = 1, .position = {6, 5}});
 
-	CHECK(arena.interaction.applyStatus(source, target, debuff({1, 1}), std::make_unique<ShieldStatus>()));
-	CHECK(target.has<ShieldStatus>());
-
-	arena.interaction.apply(damage(2, 1, 5));
-	CHECK_EQ(target.get<Health>().current, int64_t{10});
+	CHECK(arena.interaction.applyStatus(source, target, debuff({1, 1}), std::make_unique<Burning>(5)));
+	CHECK(target.has<Burning>());
+	CHECK(target.get<Burning>().expiresAt() == sw::core::Tick{5});
+	CHECK_EQ(target.components().statuses().size(), size_t{1});
 }
 
 TEST(Interaction_status_respects_target_rules)
@@ -249,7 +162,7 @@ TEST(Interaction_status_respects_target_rules)
 		std::logic_error);
 }
 
-TEST(Interaction_reapplied_status_replaces_the_old_one_by_default)
+TEST(Interaction_reapplied_status_replaces_the_old_one)
 {
 	Arena arena;
 	const Unit& source = arena.spawn({.id = 2, .position = {5, 5}});
@@ -261,19 +174,5 @@ TEST(Interaction_reapplied_status_replaces_the_old_one_by_default)
 
 	CHECK(target.tryGet<Burning>() != first);
 	CHECK(target.get<Burning>().expiresAt() == sw::core::Tick{9});
-}
-
-TEST(Interaction_reapplied_status_may_keep_itself_and_stack)
-{
-	Arena arena;
-	const Unit& source = arena.spawn({.id = 2, .position = {5, 5}});
-	const Unit& target = arena.spawn({.id = 1, .position = {6, 5}});
-
-	CHECK(arena.interaction.applyStatus(source, target, debuff({1, 1}), std::make_unique<StackingPoison>(5)));
-	const StackingPoison* first = target.tryGet<StackingPoison>();
-	CHECK(arena.interaction.applyStatus(source, target, debuff({1, 1}), std::make_unique<StackingPoison>(8)));
-
-	CHECK(target.tryGet<StackingPoison>() == first);
-	CHECK_EQ(target.get<StackingPoison>().stacks, 2);
-	CHECK(target.get<StackingPoison>().expiresAt() == sw::core::Tick{8});
+	CHECK_EQ(target.components().statuses().size(), size_t{1});
 }

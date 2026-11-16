@@ -3,7 +3,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 namespace sw::core
 {
@@ -84,55 +83,6 @@ namespace sw::core
 			}
 		}
 		return cells;
-	}
-
-	void Map::addCellFeature(
-		Position cell, std::shared_ptr<const void> owner, const IMoveCostModifier* cost, IEnterTrigger* trigger)
-	{
-		requireInside(cell, "addCellFeature");
-		CellFeatureList& features = _features[cell];
-		features.owners.push_back(std::move(owner));
-		if (cost != nullptr)
-		{
-			features.costModifiers.push_back(cost);
-		}
-		if (trigger != nullptr)
-		{
-			features.enterTriggers.push_back(trigger);
-		}
-	}
-
-	int64_t Map::moveCost(Position cell, const Unit& unit) const
-	{
-		int64_t cost = 1;
-		const auto found = _features.find(cell);
-		if (found == _features.end())
-		{
-			return cost;
-		}
-		for (const IMoveCostModifier* modifier : found->second.costModifiers)
-		{
-			cost = modifier->moveCost(unit, cost);
-			if (cost < 1)
-			{
-				throw std::logic_error(
-					"Map: move cost of cell " + describe(cell) + " must be at least 1, got " + std::to_string(cost));
-			}
-		}
-		return cost;
-	}
-
-	void Map::triggerEnter(Position cell, const Unit& unit, TurnContext& context) const
-	{
-		const auto found = _features.find(cell);
-		if (found == _features.end())
-		{
-			return;
-		}
-		for (IEnterTrigger* trigger : found->second.enterTriggers)
-		{
-			trigger->onEnter(unit, context);
-		}
 	}
 
 	void Map::requireInside(Position cell, const char* operation) const

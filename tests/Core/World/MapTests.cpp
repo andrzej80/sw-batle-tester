@@ -2,41 +2,14 @@
 #include "TestFramework/TestFramework.hpp"
 
 #include <Core/Map/Map.hpp>
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
-using sw::core::IMoveCostModifier;
 using sw::core::Map;
 using sw::core::Position;
 using sw::core::Unit;
 using sw::core::UnitId;
 using namespace sw::test;
-
-namespace
-{
-	struct Swamp final : IMoveCostModifier
-	{
-		explicit Swamp(int64_t extra) :
-				extra(extra)
-		{}
-
-		int64_t moveCost(const Unit&, int64_t cost) const override
-		{
-			return cost + extra;
-		}
-
-		int64_t extra;
-	};
-
-	struct BrokenCost final : IMoveCostModifier
-	{
-		int64_t moveCost(const Unit&, int64_t) const override
-		{
-			return 0;
-		}
-	};
-}
 
 TEST(Map_requires_positive_size)
 {
@@ -93,30 +66,4 @@ TEST(Map_largest_map_is_stored_sparsely)
 	map.occupy(farCorner, UnitId{1});
 	CHECK(map.occupant(farCorner) == UnitId{1});
 	CHECK(!map.contains({4294967295, 0}));
-}
-
-TEST(Map_move_cost_is_one_by_default_and_chained_through_modifiers)
-{
-	Map map(10, 10);
-	const Unit unit = makeUnit({.id = 1, .position = {0, 0}});
-	CHECK_EQ(map.moveCost({1, 1}, unit), int64_t{1});
-
-	map.addCellFeature({1, 1}, std::make_shared<Swamp>(1));
-	map.addCellFeature({1, 1}, std::make_shared<Swamp>(2));
-	CHECK_EQ(map.moveCost({1, 1}, unit), int64_t{4});
-	CHECK_EQ(map.moveCost({2, 2}, unit), int64_t{1});
-}
-
-TEST(Map_move_cost_below_one_breaks_the_contract)
-{
-	Map map(10, 10);
-	const Unit unit = makeUnit({.id = 1, .position = {0, 0}});
-	map.addCellFeature({1, 1}, std::make_shared<BrokenCost>());
-	CHECK_THROWS(static_cast<void>(map.moveCost({1, 1}, unit)), std::logic_error);
-}
-
-TEST(Map_cell_feature_outside_the_map_is_rejected)
-{
-	Map map(10, 10);
-	CHECK_THROWS(map.addCellFeature({10, 10}, std::make_shared<Swamp>(1)), std::logic_error);
 }

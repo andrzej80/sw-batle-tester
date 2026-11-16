@@ -7,8 +7,8 @@
 #include <vector>
 
 using sw::core::ComponentStore;
-using sw::core::IHitModifier;
 using sw::core::ITargetRule;
+using sw::core::Status;
 using namespace sw::test;
 
 TEST(ComponentStore_adds_and_finds_components_by_type)
@@ -46,29 +46,29 @@ TEST(ComponentStore_indexes_hooks_in_order_of_addition)
 	ComponentStore store;
 	store.add<Strength>(1);
 	const auto& rule = store.add<RuleComponent>();
-	const auto& modifier = store.add<ModifierComponent>();
-	auto& both = store.add<RuleAndModifierComponent>();
+	const auto& status = store.add<StatusComponent>();
+	const auto& both = store.add<RuleAndStatusComponent>();
 
 	const std::vector<const ITargetRule*> expectedRules{&rule, &both};
-	const std::vector<IHitModifier*> expectedModifiers{const_cast<ModifierComponent*>(&modifier), &both};
+	const std::vector<const Status*> expectedStatuses{&status, &both};
 	CHECK(store.targetRules() == expectedRules);
-	CHECK(store.hitModifiers() == expectedModifiers);
+	CHECK(store.statuses() == expectedStatuses);
 }
 
 TEST(ComponentStore_remove_drops_component_from_hook_index)
 {
 	ComponentStore store;
 	store.add<RuleComponent>();
-	auto& both = store.add<RuleAndModifierComponent>();
+	const auto& both = store.add<RuleAndStatusComponent>();
 
 	CHECK(store.remove<RuleComponent>());
 	CHECK(!store.has<RuleComponent>());
 	CHECK_EQ(store.targetRules().size(), size_t{1});
 	CHECK(store.targetRules()[0] == &both);
 
-	CHECK(store.remove<RuleAndModifierComponent>());
+	CHECK(store.remove<RuleAndStatusComponent>());
 	CHECK(store.targetRules().empty());
-	CHECK(store.hitModifiers().empty());
+	CHECK(store.statuses().empty());
 
 	CHECK(!store.remove<RuleComponent>());
 }
@@ -76,10 +76,10 @@ TEST(ComponentStore_remove_drops_component_from_hook_index)
 TEST(ComponentStore_accepts_components_known_only_at_runtime)
 {
 	ComponentStore store;
-	std::unique_ptr<sw::core::IComponent> status = std::make_unique<ModifierComponent>();
-	store.add(typeid(ModifierComponent), std::move(status));
+	std::unique_ptr<sw::core::IComponent> status = std::make_unique<StatusComponent>();
+	store.add(typeid(StatusComponent), std::move(status));
 
-	CHECK(store.has<ModifierComponent>());
-	CHECK_EQ(store.hitModifiers().size(), size_t{1});
+	CHECK(store.has<StatusComponent>());
+	CHECK_EQ(store.statuses().size(), size_t{1});
 	CHECK_THROWS(store.add(typeid(Strength), nullptr), std::logic_error);
 }

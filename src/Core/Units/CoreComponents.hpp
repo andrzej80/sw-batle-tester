@@ -29,12 +29,8 @@ namespace sw::core
 		std::deque<Position> marches;
 	};
 
-	enum class Reapply : std::uint8_t
-	{
-		Replace,
-		Keep,
-	};
-
+	// Временное или постоянное состояние юнита (оглушение, бафф, флаг). Повторное
+	// наложение статуса того же типа заменяет старый экземпляр; истёкшие снимаются в Cleanup.
 	class Status : public IComponent
 	{
 	public:
@@ -48,19 +44,6 @@ namespace sw::core
 		bool isExpired(Tick now) const
 		{
 			return _expiresAt.has_value() && *_expiresAt <= now;
-		}
-
-		// По умолчанию новый статус заменяет старый. Keep — оставить этот (продлив срок или
-		// сложив стаки в переопределении).
-		virtual Reapply onReapplied(const Status& /*incoming*/)
-		{
-			return Reapply::Replace;
-		}
-
-	protected:
-		void setExpiresAt(std::optional<Tick> expiresAt)
-		{
-			_expiresAt = expiresAt;
 		}
 
 	private:

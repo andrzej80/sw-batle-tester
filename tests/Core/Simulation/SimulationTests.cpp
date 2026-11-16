@@ -150,7 +150,7 @@ TEST(Simulation_detects_action_that_changed_the_world_but_returned_false)
 		 .position = {0, 0},
 		 .actions = {[](const Unit& self, TurnContext& context)
 					 {
-						 context.movement().stepTo(self, {1, 0}, context);
+						 context.movement().stepTo(self, {1, 0});
 						 return false;
 					 }}});
 	arena.spawn({.id = 2, .position = {9, 9}});

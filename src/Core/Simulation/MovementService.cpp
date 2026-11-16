@@ -15,7 +15,7 @@ namespace sw::core
 			_events(events)
 	{}
 
-	bool MovementService::stepTo(const Unit& unit, Position cell, TurnContext& context)
+	bool MovementService::stepTo(const Unit& unit, Position cell)
 	{
 		if (!unit.has<Movement>() || chebyshev(unit.position(), cell) != 1 || !_world.query().isFreeFor(unit, cell))
 		{
@@ -30,7 +30,6 @@ namespace sw::core
 		moving.setPosition(cell);
 		_world.activity().markChange();
 		_events.publish(events::UnitMoved{moving.id(), cell});
-		_world.map().triggerEnter(cell, moving, context);
 		return true;
 	}
 

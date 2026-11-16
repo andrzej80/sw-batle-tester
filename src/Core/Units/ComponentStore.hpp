@@ -3,8 +3,6 @@
 #include "IComponent.hpp"
 
 #include <Core/Common/TypeName.hpp>
-#include <cstddef>
-#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -16,7 +14,7 @@
 namespace sw::core
 {
 	class ITargetRule;
-	class IHitModifier;
+	class Status;
 
 	class ComponentStore
 	{
@@ -34,8 +32,6 @@ namespace sw::core
 		void add(std::type_index type, std::unique_ptr<IComponent> component);
 
 		bool remove(std::type_index type);
-
-		size_t removeIf(const std::function<bool(const IComponent&)>& predicate);
 
 		template <class T>
 		bool remove()
@@ -95,14 +91,14 @@ namespace sw::core
 			return _targetRules;
 		}
 
-		const std::vector<IHitModifier*>& hitModifiers() const
+		const std::vector<const Status*>& statuses() const
 		{
-			return _hitModifiers;
+			return _statuses;
 		}
 
 	private:
 		std::unordered_map<std::type_index, std::unique_ptr<IComponent>> _components;
 		std::vector<const ITargetRule*> _targetRules;
-		std::vector<IHitModifier*> _hitModifiers;
+		std::vector<const Status*> _statuses;
 	};
 }

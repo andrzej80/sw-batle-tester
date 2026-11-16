@@ -1,9 +1,7 @@
 #include "Interaction.hpp"
 
-#include "IHitModifier.hpp"
 #include "Targeting.hpp"
 
-#include <Core/Common/TypeName.hpp>
 #include <Core/Events/CoreEvents.hpp>
 #include <Core/Events/EventBus.hpp>
 #include <Core/Units/CoreComponents.hpp>
@@ -13,7 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <typeindex>
-#include <vector>
 
 namespace sw::core
 {
@@ -23,25 +20,6 @@ namespace sw::core
 		{
 			return "hit from unit " + std::to_string(hit.source.value) + " to unit " + std::to_string(hit.target.value);
 		}
-
-		void applyModifiers(Unit& target, Hit& hit)
-		{
-			std::vector<IHitModifier*> modifiers = target.components().hitModifiers();
-			std::stable_sort(
-				modifiers.begin(),
-				modifiers.end(),
-				[](const IHitModifier* a, const IHitModifier* b) { return a->priority() < b->priority(); });
-			for (IHitModifier* modifier : modifiers)
-			{
-				modifier->modify(hit);
-				if (hit.amount < 0)
-				{
-					throw std::logic_error(
-						"Interaction: modifier " + typeName(*modifier) + " made amount negative (" + describe(hit)
-						+ ")");
-				}
-			}
-		}
 	}
 
 	Interaction::Interaction(World& world, const Targeting& targeting, const EventBus& events) :
@@ -50,28 +28,24 @@ namespace sw::core
 			_events(events)
 	{}
 
-	void Interaction::apply(const Hit& incoming)
+	void Interaction::apply(const Hit& hit)
 	{
-		if (incoming.spec.effect == Effect::Status)
+		if (hit.spec.effect == Effect::Status)
 		{
 			throw std::logic_error(
-				"Interaction: apply() is for Damage and Heal, use applyStatus() (" + describe(incoming) + ")");
+				"Interaction: apply() is for Damage and Heal, use applyStatus() (" + describe(hit) + ")");
 		}
-		if (incoming.amount < 0)
+		if (hit.amount < 0)
 		{
-			throw std::logic_error("Interaction: negative amount (" + describe(incoming) + ")");
+			throw std::logic_error("Interaction: negative amount (" + describe(hit) + ")");
 		}
-		const Unit* source = _world.units().find(incoming.source);
-		Unit* target = _world.units().find(incoming.target);
-		if (source == nullptr || target == nullptr || !_targeting.canTarget(*source, *target, incoming.spec))
+		const Unit* source = _world.units().find(hit.source);
+		Unit* target = _world.units().find(hit.target);
+		if (source == nullptr || target == nullptr || !_targeting.canTarget(*source, *target, hit.spec))
 		{
 			throw std::logic_error(
-				"Interaction: target cannot be hit by this spec; select it through Targeting (" + describe(incoming)
-				+ ")");
+				"Interaction: target cannot be hit by this spec; select it through Targeting (" + describe(hit) + ")");
 		}
-
-		Hit hit = incoming;
-		applyModifiers(*target, hit);
 
 		Health& health = target->get<Health>();
 		if (hit.spec.effect == Effect::Damage)
@@ -112,15 +86,7 @@ namespace sw::core
 		ComponentStore& components = _world.units().mutableOf(target).components();
 		const Status& incoming = *status;
 		const std::type_index type(typeid(incoming));
-		if (auto* existing = dynamic_cast<Status*>(components.find(type)))
-		{
-			if (existing->onReapplied(incoming) == Reapply::Keep)
-			{
-				_world.activity().markChange();
-				return true;
-			}
-			components.remove(type);
-		}
+		components.remove(type);
 		components.add(type, std::move(status));
 		_world.activity().markChange();
 		return true;

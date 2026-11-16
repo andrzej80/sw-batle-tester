@@ -21,8 +21,8 @@
 2. **Шаг марша — сначала прямой.** Если свободна клетка `(sign(dx), sign(dy))`,
    юнит идёт в неё; иначе — случайная из остальных свободных клеток, уменьшающих
    расстояние. Так движение предсказуемо и похоже на лог из исходного `main.cpp` (`docs/original_main_output.txt`).
-3. **Движение за тик заканчивается на приходе в цель.** Остаток бюджета `speed`
-   не переносится на следующий марш из очереди; следующий марш стартует в том же
+3. **Движение за тик заканчивается на приходе в цель.** Оставшиеся шаги `speed`
+   не переносятся на следующий марш из очереди; следующий марш стартует в том же
    тике (`MARCH_STARTED`), а идти начинает со следующего.
 4. **Ошибки-последствия подавляются.** Если спавн юнита не прошёл проверку, команды
    `MARCH` для этого id ошибок не дают — первопричина уже в списке.
@@ -150,7 +150,7 @@ public:
 | Где | Тип | Почему |
 |---|---|---|
 | IO: DTO команд и событий | `uint32_t` | это формат файла и вывода, он не меняется |
-| Core и Features: координаты, размеры карты, HP, статы, урон, лечение, дистанции, скорость, стоимость шага | `int64_t` | естественная арифметика с минусом (`dx = -1`, сдвиг дистанции, HP ниже 0); любое `uint32_t` помещается без потерь |
+| Core и Features: координаты, размеры карты, HP, статы, урон, лечение, дистанции, скорость | `int64_t` | естественная арифметика с минусом (`dx = -1`, сдвиг дистанции, HP ниже 0); любое `uint32_t` помещается без потерь |
 | `UnitId` | обёртка над `uint32_t` | с идентификатором не считают |
 | `Tick`, счётчики (`ActivityTracker`) | `uint64_t` | только `++` и сравнение |
 | размеры контейнеров и индексы | `size_t` | так их возвращает стандартная библиотека; в арифметику домена не смешиваются |
@@ -223,7 +223,7 @@ public:
     template <class T> bool has() const;
     template <class T> const T& get() const;     // нет компонента → std::logic_error
     template <class T> const T* tryGet() const;
-    const ComponentStore& components() const;    // targetRules(), hitModifiers() — индекс хуков
+    const ComponentStore& components() const;    // targetRules(), statuses() — индексы
 };
 ```
 
@@ -232,11 +232,11 @@ public:
   `requestRemoval`, неконстантные `get`, `behaviour()`) вызывает Core.
 - `isDead()` — по `Health`: HP ≤ 0. Юнит без `Health` не умирает.
 - `ComponentStore`: по одному компоненту каждого типа; второй компонент того же типа —
-  `std::logic_error`. Компонент, реализующий `ITargetRule` / `IHitModifier`, при
-  добавлении попадает в индекс хуков, при удалении — убирается из него. Порядок хуков —
-  порядок добавления. Можно добавить компонент, тип которого известен только во время
-  выполнения (статусы).
-- Интерфейсы `IAction`, `ITargetRule`, `IHitModifier` объявлены здесь же (T04), типы
+  `std::logic_error`. Компонент, реализующий `ITargetRule`, и компонент-статус
+  (`Status`) при добавлении попадают в свой индекс, при удалении — убираются из него.
+  Порядок в индексе — порядок добавления. Можно добавить компонент, тип которого
+  известен только во время выполнения (статусы).
+- Интерфейсы `IAction`, `ITargetRule` объявлены здесь же (T04), типы
   `TargetSpec`, `Hit`, `TurnContext` — объявлены заранее и определяются в T06–T07.
 
 ### 3.2 Компоненты Core
@@ -247,6 +247,8 @@ struct Movement { int64_t speed; std::deque<Position> marches; };   // speed ≥
 class  Status : public IComponent {                     // база статусов
 public:
     explicit Status(std::optional<Tick> expiresAt);     // nullopt — бессрочный
+    std::optional<Tick> expiresAt() const;
+    bool isExpired(Tick now) const;                     // expiresAt ≤ now
 };
 ```
 
@@ -285,11 +287,6 @@ public:
     std::optional<UnitId> occupant(Position) const;
     void occupy(Position, UnitId);                      // занята / вне карты → logic_error
     void release(Position, UnitId);
-    // Раскладывает свойство по спискам интерфейсов, которые реализует F
-    // (проверка на этапе компиляции: F реализует хотя бы один)
-    template <class F> void addCellFeature(Position, std::shared_ptr<F>);
-    int64_t moveCost(Position, const Unit&) const;      // по умолчанию 1; результат ≥ 1
-    void    triggerEnter(Position, const Unit&, TurnContext&) const;
 };
 ```
 
@@ -297,10 +294,8 @@ public:
 - `neighbourCells(Position)` — соседние клетки внутри карты в постоянном порядке
   (по строкам сверху вниз, в строке слева направо); считаются в `int64_t`, у края
   карты лишние отсекаются.
-- Модификаторы стоимости и триггеры клетки применяются в порядке добавления;
-  модификатор получает стоимость после предыдущего.
-- **Хранение разреженное:** занятость — `std::unordered_map<Position, UnitId>`,
-  свойства клеток — `std::unordered_map<Position, …>`. Формат допускает карту до
+- **Хранение разреженное:** занятость — `std::unordered_map<Position, UnitId>`.
+  Формат допускает карту до
   4294967295 × 4294967295, плотная сетка такого размера в память не поместится.
   Ограничение размера карты не вводится: формат его не задаёт.
 
@@ -356,15 +351,14 @@ public:
 
 ### 5.1 TargetSpec, Hit, интерфейсы
 
-Как в архитектуре (п. 4.9): `Intent`, `Effect`, `TargetSpec`, `ITargetRule`,
-`IHitModifier`.
+Как в архитектуре (п. 4.9): `Intent`, `Effect`, `TargetSpec`, `ITargetRule`.
 
 ```cpp
 struct Hit {
     TargetSpec spec;
     UnitId     source;
     UnitId     target;
-    int64_t    amount;   // ≥ 0 на входе и после каждого модификатора
+    int64_t    amount;   // ≥ 0
 };
 ```
 
@@ -410,28 +404,24 @@ public:
   Так `Hit`, собранный в обход отбора, не обходит правила цели. Отрицательный `amount`
   и `Effect::Status` в `apply` — тоже `std::logic_error`.
 - **Повторное наложение статуса** (согласовано): если у цели уже есть статус того же
-  типа, решает он сам — `Status::onReapplied(incoming)`:
-  - `Reapply::Replace` (по умолчанию) — новый экземпляр заменяет старый: обновляются
-    срок и параметры; в индексе хуков он встаёт в конец;
-  - `Reapply::Keep` — остаётся старый (он мог изменить себя: продлить срок через
-    `setExpiresAt`, добавить стак), новый отбрасывается.
-
-  В обоих случаях `applyStatus` возвращает `true` и отмечает изменение мира.
+  типа, новый экземпляр заменяет старый — обновляются срок и параметры; в индексах
+  он встаёт в конец. `applyStatus` возвращает `true` и отмечает изменение мира.
+  Продление срока и стаки отложены до первой механики, которой они нужны.
 
 `apply`:
-1. модификаторы цели по возрастанию `priority()`, при равенстве — в порядке
-   добавления; после каждого — проверка `amount ≥ 0` (иначе `std::logic_error`);
-2. `Damage`: `current -= amount`, публикуется `UnitAttacked{source, target, amount, max(0, current)}`;
+1. `Damage`: `current -= amount`, публикуется `UnitAttacked{source, target, amount, max(0, current)}`;
    если `current ≤ 0` и юнит ещё не мёртв — пометка «мёртв» и сразу `UnitDied`;
-3. `Heal`: `current = min(max, current + amount)`, публикуется `UnitHealed`
-   (с `amount` после модификаторов, в том числе 0);
-4. `ActivityTracker::markChange()`.
+2. `Heal`: `current = min(max, current + amount)`, публикуется `UnitHealed`
+   (в том числе с `amount = 0`);
+3. `ActivityTracker::markChange()`.
+
+Модификаторов удара (щит, резист, запрет лечения) нет (согласовано): юнитам из
+задания и «Планов» они не нужны (KNOWN_ISSUES.md, п. 12).
 
 **Приёмка:** урон больше HP даёт `targetHp = 0` и одно `UnitDied`; повторный удар по
 мёртвому невозможен (его не выбирает `Targeting`, а `apply` бросает `logic_error`);
 `Hit` ближней атаки по летающему или по цели вне дистанции — `logic_error`; лечение не
-поднимает HP выше max;
-модификатор, обнуливший урон, даёт `UnitAttacked` с `damage = 0`.
+поднимает HP выше max; повторно наложенный статус заменяет прежний.
 
 ## 6. Core / Simulation
 
@@ -466,14 +456,14 @@ class MovementService {
 public:
     // Один шаг в соседнюю клетку. false — у юнита нет Movement, клетка вне карты,
     // не соседняя или занята для этого юнита.
-    bool stepTo(const Unit&, Position cell, TurnContext&);   // контекст — для триггеров клетки
+    bool stepTo(const Unit&, Position cell);
     void addMarch(const Unit&, Position target);             // первый в очереди — MarchStarted
     void finishMarch(const Unit&);                           // MarchEnded, следующий — MarchStarted
 };
 ```
 
 `stepTo` при успехе: освобождает и занимает клетки (для `occupiesCell`), меняет
-позицию, публикует `UnitMoved`, вызывает `IEnterTrigger` клетки.
+позицию, публикует `UnitMoved`.
 
 `IRandom::index(count)` — случайный индекс в `[0, count)`; `StdRandom` — `mt19937_64` с
 seed, в приложении seed от `std::random_device`.
@@ -482,15 +472,13 @@ seed, в приложении seed от `std::random_device`.
 
 ```
 нет Movement или очередь пуста          → false
-budget = speed; moved = false
-пока budget > 0 и юнит не в цели и жив (триггер клетки мог его убить):
+moved = false
+до speed раз, пока юнит не в цели и жив:
     кандидаты = соседние клетки, уменьшающие расстояние до цели и свободные для юнита
     если пусто → break
     cell = прямая клетка (sign(dx), sign(dy)), если она среди кандидатов,
            иначе случайная из кандидатов
-    cost = map.moveCost(cell, unit)
-    если moved и cost > budget → break        // первый шаг разрешён всегда
-    movement.stepTo(unit, cell); budget -= cost; moved = true
+    movement.stepTo(unit, cell); moved = true
 если юнит в цели: finishMarch → return true      // события — изменение мира
 return moved
 ```
@@ -663,7 +651,7 @@ public:
   и объявляет требование компонента `T`. Это единственная точка чтения статов:
   будущие модификаторы статов (баффы, проклятия) встанут в `stat<T>` без правок
   действий. Модификаторов сейчас нет; чтобы `stat<T>` находил на юните модификаторы
-  неизвестных ему типов, понадобится поиск компонентов по интерфейсу в `ComponentStore`
+  неизвестных ему типов, понадобится индекс компонентов по интерфейсу в `ComponentStore`
   — это правка Core (KNOWN_ISSUES.md, п. 12).
 - `distance(min, max)` — источник дистанции действия; каждая граница — число или
   `stat<T>`. Вычисляется в `DistanceRange` при каждом выполнении действия;

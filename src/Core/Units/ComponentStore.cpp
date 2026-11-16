@@ -1,6 +1,7 @@
 #include "ComponentStore.hpp"
 
-#include <Core/Interaction/IHitModifier.hpp>
+#include "CoreComponents.hpp"
+
 #include <Core/Interaction/ITargetRule.hpp>
 #include <algorithm>
 
@@ -29,28 +30,11 @@ namespace sw::core
 		{
 			_targetRules.push_back(rule);
 		}
-		if (auto* modifier = dynamic_cast<IHitModifier*>(component.get()))
+		if (const auto* status = dynamic_cast<const Status*>(component.get()))
 		{
-			_hitModifiers.push_back(modifier);
+			_statuses.push_back(status);
 		}
 		_components.emplace(type, std::move(component));
-	}
-
-	size_t ComponentStore::removeIf(const std::function<bool(const IComponent&)>& predicate)
-	{
-		std::vector<std::type_index> doomed;
-		for (const auto& [type, component] : _components)
-		{
-			if (predicate(*component))
-			{
-				doomed.push_back(type);
-			}
-		}
-		for (const std::type_index type : doomed)
-		{
-			remove(type);
-		}
-		return doomed.size();
 	}
 
 	bool ComponentStore::remove(std::type_index type)
@@ -65,9 +49,9 @@ namespace sw::core
 		{
 			erase(_targetRules, rule);
 		}
-		if (auto* modifier = dynamic_cast<IHitModifier*>(component))
+		if (const auto* status = dynamic_cast<const Status*>(component))
 		{
-			erase(_hitModifiers, modifier);
+			erase(_statuses, status);
 		}
 		_components.erase(found);
 		return true;

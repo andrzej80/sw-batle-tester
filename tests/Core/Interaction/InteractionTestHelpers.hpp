@@ -4,12 +4,10 @@
 
 #include <Core/Events/CoreEvents.hpp>
 #include <Core/Events/EventBus.hpp>
-#include <Core/Interaction/IHitModifier.hpp>
 #include <Core/Interaction/ITargetRule.hpp>
 #include <Core/Interaction/Interaction.hpp>
 #include <Core/Interaction/Targeting.hpp>
 #include <Core/World/World.hpp>
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -70,128 +68,11 @@ namespace sw::test
 		}
 	};
 
-	template <int Id>
-	class LoggingModifier final : public core::IComponent, public core::IHitModifier
-	{
-	public:
-		LoggingModifier(std::vector<std::string>& log, std::string name, int priority) :
-				_log(log),
-				_name(std::move(name)),
-				_priority(priority)
-		{}
-
-		int priority() const override
-		{
-			return _priority;
-		}
-
-		void modify(core::Hit&) override
-		{
-			_log.push_back(_name);
-		}
-
-	private:
-		std::vector<std::string>& _log;
-		std::string _name;
-		int _priority;
-	};
-
-	class Shield final : public core::IComponent, public core::IHitModifier
-	{
-	public:
-		explicit Shield(int64_t capacity) :
-				_left(capacity)
-		{}
-
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit& hit) override
-		{
-			if (hit.spec.effect != core::Effect::Damage)
-			{
-				return;
-			}
-			const int64_t absorbed = std::min(_left, hit.amount);
-			_left -= absorbed;
-			hit.amount -= absorbed;
-		}
-
-	private:
-		int64_t _left;
-	};
-
-	struct HealBan final : core::IComponent, core::IHitModifier
-	{
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit& hit) override
-		{
-			if (hit.spec.effect == core::Effect::Heal)
-			{
-				hit.amount = 0;
-			}
-		}
-	};
-
-	struct NegativeModifier final : core::IComponent, core::IHitModifier
-	{
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit& hit) override
-		{
-			hit.amount = -1;
-		}
-	};
-
 	struct Burning final : core::Status
 	{
 		explicit Burning(core::Tick expiresAt) :
 				Status(expiresAt)
 		{}
-	};
-
-	class StackingPoison final : public core::Status
-	{
-	public:
-		explicit StackingPoison(core::Tick expiresAt) :
-				Status(expiresAt)
-		{}
-
-		core::Reapply onReapplied(const core::Status& incoming) override
-		{
-			++stacks;
-			setExpiresAt(incoming.expiresAt());
-			return core::Reapply::Keep;
-		}
-
-		int stacks = 1;
-	};
-
-	class ShieldStatus final : public core::Status, public core::IHitModifier
-	{
-	public:
-		ShieldStatus() :
-				Status(std::nullopt)
-		{}
-
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit& hit) override
-		{
-			hit.amount = 0;
-		}
 	};
 
 	struct Arena

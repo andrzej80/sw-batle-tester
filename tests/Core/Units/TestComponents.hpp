@@ -1,9 +1,9 @@
 #pragma once
 
 #include <Core/Actions/IAction.hpp>
-#include <Core/Interaction/IHitModifier.hpp>
 #include <Core/Interaction/ITargetRule.hpp>
 #include <Core/Units/ComponentRequirements.hpp>
+#include <Core/Units/CoreComponents.hpp>
 #include <Core/Units/IComponent.hpp>
 #include <cstdint>
 #include <functional>
@@ -29,29 +29,23 @@ namespace sw::test
 		}
 	};
 
-	struct ModifierComponent final : core::IComponent, core::IHitModifier
+	struct StatusComponent final : core::Status
 	{
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit&) override {}
+		StatusComponent() :
+				Status(std::nullopt)
+		{}
 	};
 
-	struct RuleAndModifierComponent final : core::IComponent, core::ITargetRule, core::IHitModifier
+	struct RuleAndStatusComponent final : core::Status, core::ITargetRule
 	{
+		RuleAndStatusComponent() :
+				Status(std::nullopt)
+		{}
+
 		std::optional<core::DistanceRange> adjust(const core::TargetSpec&, core::DistanceRange range) const override
 		{
 			return range;
 		}
-
-		int priority() const override
-		{
-			return 0;
-		}
-
-		void modify(core::Hit&) override {}
 	};
 
 	template <class... Required>

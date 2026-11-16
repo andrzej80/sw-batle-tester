@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <typeindex>
 #include <vector>
 
 namespace sw::core
@@ -115,12 +116,18 @@ namespace sw::core
 			{
 				continue;
 			}
-			unit->components().removeIf(
-				[now](const IComponent& component)
+			std::vector<std::type_index> expired;
+			for (const Status* status : unit->components().statuses())
+			{
+				if (status->isExpired(now))
 				{
-					const auto* status = dynamic_cast<const Status*>(&component);
-					return status != nullptr && status->isExpired(now);
-				});
+					expired.emplace_back(typeid(*status));
+				}
+			}
+			for (const std::type_index type : expired)
+			{
+				unit->components().remove(type);
+			}
 		}
 	}
 }

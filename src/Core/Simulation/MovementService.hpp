@@ -5,7 +5,6 @@
 namespace sw::core
 {
 	class EventBus;
-	class TurnContext;
 	class Unit;
 	class World;
 
@@ -14,7 +13,7 @@ namespace sw::core
 	public:
 		MovementService(World& world, const EventBus& events);
 
-		bool stepTo(const Unit& unit, Position cell, TurnContext& context);
+		bool stepTo(const Unit& unit, Position cell);
 
 		void addMarch(const Unit& unit, Position target);
 

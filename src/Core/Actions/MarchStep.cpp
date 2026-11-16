@@ -58,9 +58,8 @@ namespace sw::core
 		}
 		const Position target = movement.marches.front();
 
-		int64_t budget = movement.speed;
 		bool moved = false;
-		while (budget > 0 && self.position() != target && isAlive(self))
+		for (int64_t step = 0; step < movement.speed && self.position() != target && isAlive(self); ++step)
 		{
 			const std::vector<Position> candidates = candidateCells(self, target, context.query());
 			if (candidates.empty())
@@ -68,16 +67,10 @@ namespace sw::core
 				break;
 			}
 			const Position cell = chooseCell(candidates, self.position(), target, context.random());
-			const int64_t cost = context.query().map().moveCost(cell, self);
-			if (moved && cost > budget)
+			if (!context.movement().stepTo(self, cell))
 			{
 				break;
 			}
-			if (!context.movement().stepTo(self, cell, context))
-			{
-				break;
-			}
-			budget -= cost;
 			moved = true;
 		}
 
