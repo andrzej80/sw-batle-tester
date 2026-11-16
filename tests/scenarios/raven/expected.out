@@ -1,0 +1,17 @@
+[1] MAP_CREATED width=10 height=1 
+[1] UNIT_SPAWNED unitId=1 unitType=Swordsman x=9 y=0 
+[1] UNIT_SPAWNED unitId=2 unitType=Raven x=0 y=0 
+[1] MARCH_STARTED unitId=2 x=0 y=0 targetX=8 targetY=0 
+[2] UNIT_MOVED unitId=2 x=1 y=0 
+[2] UNIT_MOVED unitId=2 x=2 y=0 
+[3] UNIT_MOVED unitId=2 x=3 y=0 
+[3] UNIT_MOVED unitId=2 x=4 y=0 
+[4] UNIT_MOVED unitId=2 x=5 y=0 
+[4] UNIT_MOVED unitId=2 x=6 y=0 
+[5] UNIT_MOVED unitId=2 x=7 y=0 
+[5] UNIT_MOVED unitId=2 x=8 y=0 
+[5] MARCH_ENDED unitId=2 x=8 y=0 
+[6] UNIT_ATTACKED attackerUnitId=2 targetUnitId=1 damage=2 targetHp=4 
+[7] UNIT_ATTACKED attackerUnitId=2 targetUnitId=1 damage=2 targetHp=2 
+[8] UNIT_ATTACKED attackerUnitId=2 targetUnitId=1 damage=2 targetHp=0 
+[8] UNIT_DIED unitId=1 
