@@ -94,12 +94,12 @@ src/
     Commands/, Events/              — DTO (формат не меняется)
     System/CommandParser            — парсер, собирающий ошибки вместо исключений
     System/ParseNumber              — строгий разбор uint32_t (без operator>>)
-    System/EventLog
+    System/EventLog, PrintDebug     — вывод событий (исходный код IO)
   Core/
     Common/       Types (UnitId, Tick, Position, chebyshev), DistanceRange, Narrow,
                   Result, Diagnostic, Tag/TagSet, TypeName
     Map/          Map (размер, разреженная занятость клеток)
-    Units/        Unit + UnitBlueprint, IComponent, ComponentStore (индекс хуков),
+    Units/        Unit + UnitBlueprint, IComponent, ComponentStore (индексы правил цели и статусов),
                   CoreComponents (Health, Movement, Status), ComponentRequirements
     Actions/      IAction, MarchStep
     Interaction/  TargetSpec (Intent, Effect, TargetSpec, Hit), ITargetRule, Targeting,
@@ -116,6 +116,7 @@ src/
     Units/        Swordsman, Hunter — спецификация, проверка, сборка
 tests/            юнит-тесты по слоям; scenarios/ — сценарии с эталонами вывода
 cmake/            CheckLayerBoundaries (границы слоёв), RunScenario (сценарные тесты)
+docs/adr/         архитектурные решения
 ```
 
 ## 4. Модель Core
@@ -133,7 +134,7 @@ cmake/            CheckLayerBoundaries (границы слоёв), RunScenario 
   При добавлении компонент попадает в индекс, если это правило цели (`ITargetRule`)
   или статус, чтобы Core не перебирал все компоненты при каждом отборе целей и в
   каждой фазе Cleanup;
-- `Behaviour` — упорядоченный список `IAction`.
+- поведение (`behaviour`) — упорядоченный список `IAction`.
 
 Компоненты Core: `Health` (current, max), `Movement` (speed, очередь маршей), статусы.
 Всё остальное — компоненты Features (`Strength`, `Agility`, `Range`, `Power`, `Spirit`…).
@@ -183,7 +184,7 @@ public:
 };
 ```
 
-В фазе Main у юнита выполняется первое действие из `Behaviour`, вернувшее `true`.
+В фазе Main у юнита выполняется первое действие из `behaviour`, вернувшее `true`.
 Если ни одно не выполнилось, юнит в этом тике бездействует.
 
 Действия параметризуются, а не дублируются:
@@ -297,7 +298,7 @@ public:
   - Если подходящих нет — `MarchStep` возвращает `false`.
 - За ход юнит делает до `speed` шагов. На каждую клетку — `UNIT_MOVED`.
 - Приход в цель → `MARCH_ENDED`, из очереди берётся следующий марш.
-- Порядок «атаковать или идти» в Core не зашит: его задаёт `Behaviour` юнита
+- Порядок «атаковать или идти» в Core не зашит: его задаёт `behaviour` юнита
   (п. 4.3). `MarchStep` — обычное действие, и фича ставит его на любое место в
   списке. У Мечника и Охотника по заданию атака стоит раньше шага; юнит, у которого
   `MarchStep` первый, сначала идёт и атакует только когда идти некуда или марша нет.
