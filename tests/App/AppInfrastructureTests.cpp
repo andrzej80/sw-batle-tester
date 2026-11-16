@@ -128,7 +128,7 @@ TEST(DiagnosticPrinter_prints_errors_in_line_order_with_summary)
 		"scenario.txt",
 		{
 			{9, "MARCH", "march.unit_not_found", "unit 42 does not exist", {}, {}},
-			{std::nullopt, "", "map.not_created", "scenario has no CREATE_MAP command", {}, {}},
+			{std::nullopt, "", "map.not_created", "the map was never created", {}, {}},
 			{7, "SPAWN_HUNTER", "unit.cell_occupied", "cell (9,0) is occupied by unit 2", 2, 5},
 			{2, "", "parse.unknown_command", "unknown command 'FLY'", {}, {}},
 			{7, "SPAWN_HUNTER", "hunter.invalid_range", "range must be >= 2, got 1", {}, {}},
@@ -141,7 +141,7 @@ TEST(DiagnosticPrinter_prints_errors_in_line_order_with_summary)
 					"(unit 2 spawned at line 5)\n"
 					"error: scenario.txt:7: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2, got 1\n"
 					"error: scenario.txt:9: MARCH [march.unit_not_found]: unit 42 does not exist\n"
-					"error: scenario.txt: [map.not_created]: scenario has no CREATE_MAP command\n"
+					"error: scenario.txt: [map.not_created]: the map was never created\n"
 					"5 errors, simulation not started.\n"));
 }
 

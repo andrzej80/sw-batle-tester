@@ -40,7 +40,7 @@ TEST(Interaction_lethal_damage_publishes_death_right_after_attack)
 {
 	Arena arena;
 	arena.spawn({.id = 2, .position = {7, 0}});
-	Unit& target = arena.spawn({.id = 1, .position = {3, 0}, .hp = 5});
+	Unit& target = arena.spawn({.id = 1, .position = {6, 0}, .hp = 5});
 
 	arena.interaction.apply(damage(2, 1, 7));
 
@@ -171,6 +171,26 @@ TEST(Interaction_rejects_contract_violations)
 	CHECK_THROWS(arena.interaction.apply(damage(2, 4, 1)), std::logic_error);
 	const Hit status{debuff({1, 1}), UnitId{2}, UnitId{1}, 1};
 	CHECK_THROWS(arena.interaction.apply(status), std::logic_error);
+	CHECK(arena.log.empty());
+}
+
+TEST(Interaction_hit_built_past_targeting_cannot_bypass_its_rules)
+{
+	Arena arena;
+	arena.spawn({.id = 2, .position = {5, 5}});
+	arena.spawn(
+		{.id = 1,
+		 .position = {6, 6},
+		 .components = [](ComponentStore& components)
+		 {
+			 components.add<FlyingRule>();
+		 }});
+	arena.spawn({.id = 3, .position = {9, 9}});
+
+	CHECK_THROWS(arena.interaction.apply(damage(2, 1, 1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(2, 3, 1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(2, 2, 1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(99, 1, 1)), std::logic_error);
 	CHECK(arena.log.empty());
 }
 

@@ -181,8 +181,10 @@ public:
 `stat<T>` сам объявляет требование компонента `T`.
 
 Значения статов читаются **в момент выполнения действия**, а не при сборке юнита.
-Поэтому эффект, который меняет стат (бафф дальности стрелков, проклятие силы),
-сразу влияет на действие, а параметры действий менять не нужно.
+`stat<T>` — единственная точка чтения статов, поэтому будущий модификатор стата
+(бафф дальности, проклятие силы) встанет туда, а параметры действий менять не придётся.
+Модификаторов статов сейчас нет: ни одному юниту из задания и планов они не нужны
+(KNOWN_ISSUES.md, п. 12).
 
 **Проверка компонентов при сборке.** `UnitBuilder::build` собирает требования всех
 действий и проверяет, что у юнита есть нужные компоненты. Если `MeleeAttack(stat<Strength>)`
@@ -297,7 +299,7 @@ public:
   class IMoveCostModifier {   // болото, ускорение
   public:
       virtual ~IMoveCostModifier() = default;
-      virtual int moveCost(const Unit& unit, int cost) const = 0;
+      virtual int64_t moveCost(const Unit& unit, int64_t cost) const = 0;
   };
 
   class IEnterTrigger {       // капкан
@@ -366,7 +368,7 @@ struct TargetSpec {
   │ 2. Применение: ctx.effects().apply(Hit{spec, source, target, amount})
   │      └─ модификаторы цели (IHitModifier) по приоритету меняют amount
   │ 3. Результат: изменение Health + событие (UnitAttacked / UnitHealed)
-  │ 4. Вторичные эффекты: ctx.effects().applyStatus(target, debuff({fire}, …), Burning{…})
+  │ 4. Вторичные эффекты: ctx.effects().applyStatus(self, *target, debuff({fire}, …), std::make_unique<Burning>(…))
 ```
 
 ```cpp
@@ -403,6 +405,10 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
   иммунитет добавляется в цель, а код атакующих не меняется.
 - Юнит без `Health` целью `Damage` и `Heal` не бывает: `Targeting` отфильтровывает
   его сам. Поэтому мина «не может быть атакована» без отдельного правила.
+- `apply` и `applyStatus` проверяют цель тем же `canTarget`, что и `Targeting`.
+  Обойти правила цели, собрав `Hit` в обход отбора, нельзя: `apply` на такой цели —
+  `std::logic_error` (это баг действия), `applyStatus` — `false` (правила цели могут
+  запретить статус, это нормальный исход).
 - `UNIT_ATTACKED` содержит итоговый урон после модификаторов и HP цели после удара
   (не меньше 0).
 
@@ -412,7 +418,7 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 - реализовывать `ITargetRule` и/или `IHitModifier`;
 - ставить себя в `Scheduler` (периодический урон в фазе Scheduled).
 
-Статус накладывается через `ctx.effects().applyStatus(target, spec, status)`, где
+Статус накладывается через `ctx.effects().applyStatus(source, target, spec, status)`, где
 `spec` — `buff(...)` или `debuff(...)`. Поэтому правила цели могут его запретить
 (иммунитет к горению — запрет `debuff` с тегом `fire`). Истёкшие статусы снимаются в фазе Cleanup.
 
@@ -427,7 +433,7 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 - События Core: `MapCreated`, `UnitSpawned`, `UnitMoved`, `MarchStarted`,
   `MarchEnded`, `UnitAttacked`, `UnitHealed`, `UnitDied`.
 - Features при необходимости объявляют свои события и публикуют их через
-  `ctx.events()`.
+  `ctx.publish(event)`.
 - Перевод доменного события в `io::Events` — адаптер в `App/Output`, один файл на
   событие фичи (события Core — в одном файле `CoreEventsOutput`, его меняет
   владелец Core). Адаптер регистрируется сам (`SW_REGISTER_OUTPUT`, п. 5.4).
@@ -454,6 +460,8 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 | `IHitModifier::modify` | явно проверяет `effect`: резист к `magic` уменьшает только `Damage`, запрет лечения обнуляет только `Heal`. `amount` не становится отрицательным (Core проверяет). Меняет только `Hit` и своё состояние. Применяются по возрастанию `priority()`, при равенстве — в порядке добавления |
 | `IMoveCostModifier::moveCost` | чистая функция; результат ≥ 1 |
 | `IEnterTrigger::onEnter` | меняет мир только через `TurnContext` |
+| `Interaction::apply` | цель проходит `Targeting::canTarget` для этого `spec` (правила цели, дистанция, `Health`), иначе `std::logic_error` |
+| задача `Scheduler` | захватывает только значения и `UnitId`, а не указатели и ссылки на юнитов, действия и статусы: к сроку задачи их могли удалить или заменить. Юнитов находит через `ctx.query().find()` и сама обрабатывает их отсутствие. Задачи не отменяются, удаление источника их не снимает |
 | юнит без `Health` | не бывает целью `Effect::Damage` / `Effect::Heal`; любой код Core обязан работать с таким юнитом |
 | юнит без `Movement` | никогда не меняет позицию: `MovementService` отказывает в перемещении, кто бы его ни запросил |
 
@@ -461,47 +469,20 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 
 ### 5.1 Юниты из задания
 
-```cpp
-// Features/Units/Hunter.hpp — ничего не знает про IO
-struct HunterSpec {
-    UnitId id; Position pos;
-    int64_t hp, agility, strength, range;     // в домене числа знаковые (п. 2)
-};
+Код здесь не копируется, чтобы не расходиться с ним; образец — Охотник:
 
-// Проверяет статы > 0 и range >= 2; возвращает ВСЕ найденные ошибки,
-// без номеров строк (их добавляет App). Заявка на спавн несёт id, позицию и
-// занятость клетки и тогда, когда юнит не собрался, — SetupContext проверит и их.
-SpawnRequest makeHunter(const HunterSpec& s) {
-    Diagnostics errors;
-    requirePositive(errors, "hp", s.hp);
-    requirePositive(errors, "agility", s.agility);
-    requirePositive(errors, "strength", s.strength);
-    if (s.range < 2)
-        errors.add("hunter.invalid_range", "range must be >= 2, got " + std::to_string(s.range));
-    if (!errors.empty())
-        return {s.id, s.pos, /*occupiesCell*/ true, errors};
-
-    return {s.id, s.pos, true, UnitBuilder(s.id, "Hunter", s.pos)   // occupiesCell = true по умолчанию
-        .with<Health>(s.hp).with<Agility>(s.agility).with<Strength>(s.strength)
-        .with<Range>(s.range)
-        .with<Movement>(/*speed*/ 1)
-        .action<RangedAttack>(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})
-        .action<MeleeAttack>(stat<Strength>)
-        .action<MarchStep>()
-        .build()};                                      // проверка требований действий
-}
-```
-
-```cpp
-// App/Bindings/HunterBinding.cpp — единственное место, где встречаются IO и фича
-void bindHunter(CommandRegistry& r) {
-    r.on<io::SpawnHunter>([](const io::SpawnHunter& c, SetupContext& ctx) {
-        return ctx.spawn(features::makeHunter(
-            {c.unitId, {c.x, c.y}, c.hp, c.agility, c.strength, c.range}));
-    });
-}
-SW_REGISTER_BINDING(bindHunter);
-```
+- [Features/Units/Hunter.hpp](src/Features/Units/Hunter.hpp) — `HunterSpec`: id, позиция
+  и статы в `int64_t` (в домене числа знаковые, п. 2). Про IO фича ничего не знает.
+- [Features/Units/Hunter.cpp](src/Features/Units/Hunter.cpp) — `makeHunter`: проверяет
+  статы > 0 и `range >= 2` и возвращает **все** найденные ошибки без номеров строк (их
+  добавляет App). При ошибках — `builder.reject(errors)`: заявка на спавн всё равно
+  несёт id, позицию и занятость клетки, и `SetupContext` проверит их тоже. Без ошибок —
+  сборка через `UnitBuilder`: `Health`, `Agility`, `Strength`, `Range`, `Movement(1)`,
+  behaviour = [`RangedAttack(stat<Agility>, distance(2, stat<Range>), RequireNoAdjacentOccupying{})`,
+  `MeleeAttack(stat<Strength>)`, `MarchStep`]; `spawnRequest()` проверяет требования действий.
+- [App/Bindings/HunterBinding.cpp](src/App/Bindings/HunterBinding.cpp) — единственное
+  место, где встречаются IO и фича: `io::SpawnHunter` → `HunterSpec` → `setup.spawn(...)`,
+  в конце файла `SW_REGISTER_BINDING(...)`.
 
 Мечник собирается так же: `SwordsmanSpec` → `makeSwordsman`, behaviour =
 [`MeleeAttack(stat<Strength>)`, `MarchStep`].
@@ -526,7 +507,8 @@ SW_REGISTER_BINDING(bindHunter);
 
 **Мина по тикам.**
 - Тик N, Main: `MineFuse` через `ctx.query()` видит юнита на расстоянии 0…2
-  (включая летающих) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1.
+  (включая летающих) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача
+  захватывает id мины, а не указатель на неё или на действие (контракт, п. 4.13).
   Это выполненное действие. Взведённая мина больше не действует.
 - Тик N+1, Scheduled: взрыв. `targeting().select(mine, attack({area, explosion}, {0,3}))` →
   `effects().apply` каждой цели (включая летающих: правило `Flying` не трогает `area`) → `UNIT_ATTACKED` с
@@ -550,7 +532,7 @@ amount), лечение всё равно считается выполненн�
    (`SpawnRequest makeX(const XSpec&)`); при необходимости новые статы, действия,
    теги, статусы в `Features/Common` или рядом с юнитом.
 3. `App/Bindings/XBinding.cpp` — перевод `io::SpawnX` → `XSpec`, без логики,
-   в конце файла `SW_REGISTER_BINDING(bindX);`.
+   в конце файла `SW_REGISTER_BINDING(bindX)`.
 4. Если нужен новый вид события в выводе — DTO в `IO/Events` и
    `App/Output/XEventOutput.cpp` с `SW_REGISTER_OUTPUT(...)`.
 
@@ -580,7 +562,7 @@ struct OutputRegistrar  { explicit OutputRegistrar(OutputFn fn); };     // outpu
 ```cpp
 // App/Application.cpp и App/Scenario/ScenarioRunner.cpp
 CommandRegistry registry;
-for (const BindingFn bind : options.bindings) bind(registry);   // по умолчанию bindingList()
+for (const BindingFn bind : _options.bindings) bind(registry);   // по умолчанию bindingList()
 EventBridge bridge(bus, log, clock);
 for (const OutputFn bind : outputs) bind(bridge);               // по умолчанию outputList()
 ```

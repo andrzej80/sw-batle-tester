@@ -5,6 +5,7 @@
 #include <Core/Events/EventBus.hpp>
 #include <Core/Setup/SetupContext.hpp>
 #include <Core/World/World.hpp>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -82,6 +83,19 @@ TEST(SetupContext_creates_the_map)
 	CHECK_EQ(setup.context.world()->map().width(), int64_t{10});
 	CHECK(setup.log == (std::vector<std::string>{"map 10x5"}));
 	CHECK(setup.context.finish().ok());
+}
+
+TEST(SetupContext_hands_the_built_world_over_once)
+{
+	Setup setup;
+	CHECK(setup.context.createMap(10, 5).ok());
+	CHECK(setup.context.spawn(valid({.id = 1, .position = {2, 2}})).ok());
+
+	const std::unique_ptr<sw::core::World> world = setup.context.takeWorld();
+	CHECK(world != nullptr);
+	CHECK(world->units().find(UnitId{1}) != nullptr);
+	CHECK(setup.context.world() == nullptr);
+	CHECK(setup.context.takeWorld() == nullptr);
 }
 
 TEST(SetupContext_rejects_invalid_and_repeated_map)

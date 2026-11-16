@@ -8,6 +8,7 @@
 #include <Core/World/World.hpp>
 #include <Features/Units/Hunter.hpp>
 #include <Features/Units/Swordsman.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -89,7 +90,8 @@ TEST(ExampleScenario_plays_by_the_rules_with_real_units)
 	CHECK(setup.finish().ok());
 
 	sw::test::FirstRandom random;
-	sw::core::Simulation simulation(*setup.world(), bus, random);
+	const std::unique_ptr<sw::core::World> owned = setup.takeWorld();
+	sw::core::Simulation simulation(*owned, bus, random);
 	CHECK(simulation.run() == StopReason::OneOrNoUnitsLeft);
 
 	const Lines expected{

@@ -4,6 +4,7 @@
 #include <Core/Events/EventBus.hpp>
 #include <Core/Setup/SetupContext.hpp>
 #include <Core/World/World.hpp>
+#include <IO/Commands/CreateMap.hpp>
 #include <algorithm>
 #include <cstddef>
 #include <optional>
@@ -33,7 +34,7 @@ namespace sw::app
 			return error;
 		}
 
-		void rememberSpawns(core::SetupContext& setup, size_t line, SpawnLines& spawnLines)
+		void rememberSpawns(const core::SetupContext& setup, size_t line, SpawnLines& spawnLines)
 		{
 			const core::World* world = setup.world();
 			if (world == nullptr)
@@ -61,10 +62,10 @@ namespace sw::app
 		const bool mapLineBroken = std::any_of(
 			scenario.parseErrors.begin(),
 			scenario.parseErrors.end(),
-			[](const io::ParseDiagnostic& diagnostic) { return diagnostic.command == "CREATE_MAP"; });
+			[](const io::ParseDiagnostic& diagnostic) { return diagnostic.command == io::CreateMap::Name; });
 		if (mapLineBroken)
 		{
-			setup.noteFailedMapCommand();
+			setup.noteFailedMapCreation();
 		}
 
 		SpawnLines spawnLines;

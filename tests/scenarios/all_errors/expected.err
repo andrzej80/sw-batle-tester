@@ -1,4 +1,4 @@
-error: scenario.txt:3: CREATE_MAP [map.already_created]: CREATE_MAP may appear only once
+error: scenario.txt:3: CREATE_MAP [map.already_created]: the map is already created
 error: scenario.txt:5: SPAWN_SWORDSMAN [unit.duplicate_id]: unit 1 already exists (unit 1 spawned at line 4)
 error: scenario.txt:6: SPAWN_HUNTER [unit.invalid_stat]: hp must be positive, got 0
 error: scenario.txt:6: SPAWN_HUNTER [hunter.invalid_range]: range must be >= 2, got 1

@@ -105,7 +105,7 @@ TEST(Pipeline_empty_scenario_has_no_map)
 	CHECK_EQ(run.code, InvalidScenario);
 	CHECK_EQ(
 		run.err,
-		std::string("error: scenario.txt: [map.not_created]: scenario has no CREATE_MAP command\n"
+		std::string("error: scenario.txt: [map.not_created]: the map was never created\n"
 					"1 error, simulation not started.\n"));
 	CHECK_EQ(run.out, std::string());
 }

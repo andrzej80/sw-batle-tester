@@ -40,15 +40,17 @@ namespace sw::core
 
 		Result<void> finish();
 
-		void noteFailedMapCommand()
+		void noteFailedMapCreation()
 		{
 			_mapCommandSeen = true;
 		}
 
-		World* world()
+		const World* world() const
 		{
 			return _world.get();
 		}
+
+		std::unique_ptr<World> takeWorld();
 
 	private:
 		bool requireMap(Diagnostics& errors);

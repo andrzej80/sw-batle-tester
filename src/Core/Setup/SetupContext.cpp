@@ -53,10 +53,10 @@ namespace sw::core
 		{
 			return true;
 		}
-		// После CREATE_MAP с ошибкой первопричина уже в списке
+		// После неудачного создания карты первопричина уже в списке
 		if (!_mapCommandSeen && !_missingMapReported)
 		{
-			errors.add("map.not_created", "CREATE_MAP must come before other commands");
+			errors.add("map.not_created", "the map must be created first");
 			_missingMapReported = true;
 		}
 		return false;
@@ -67,7 +67,7 @@ namespace sw::core
 		Diagnostics errors;
 		if (_mapCommandSeen)
 		{
-			errors.add("map.already_created", "CREATE_MAP may appear only once");
+			errors.add("map.already_created", "the map is already created");
 		}
 		if (width <= 0 || height <= 0)
 		{
@@ -186,9 +186,15 @@ namespace sw::core
 		Diagnostics errors;
 		if (!_mapCommandSeen && !_missingMapReported)
 		{
-			errors.add("map.not_created", "scenario has no CREATE_MAP command");
+			errors.add("map.not_created", "the map was never created");
 			_missingMapReported = true;
 		}
 		return toResult(std::move(errors));
+	}
+
+	std::unique_ptr<World> SetupContext::takeWorld()
+	{
+		_movement.reset();
+		return std::move(_world);
 	}
 }

@@ -61,11 +61,12 @@ namespace sw::core
 		{
 			throw std::logic_error("Interaction: negative amount (" + describe(incoming) + ")");
 		}
+		const Unit* source = _world.units().find(incoming.source);
 		Unit* target = _world.units().find(incoming.target);
-		if (target == nullptr || !isAlive(*target) || !target->has<Health>())
+		if (source == nullptr || target == nullptr || !_targeting.canTarget(*source, *target, incoming.spec))
 		{
 			throw std::logic_error(
-				"Interaction: target must be alive and have Health; select it through Targeting (" + describe(incoming)
+				"Interaction: target cannot be hit by this spec; select it through Targeting (" + describe(incoming)
 				+ ")");
 		}
 
