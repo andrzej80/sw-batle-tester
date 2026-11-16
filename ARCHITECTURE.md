@@ -113,7 +113,8 @@ src/
     Common/       CommonTags (melee, ranged, area, physical, flying),
                   TargetSpecs (attack, heal, buff, debuff), Stats, ValueSource (stat<T>,
                   distance), UnitBuilder, Attacks (MeleeAttack, RangedAttack)
-    Units/        Swordsman, Hunter — спецификация, проверка, сборка
+    Units/        Swordsman, Hunter, Tower, Healer, Raven, Mine — спецификация, проверка,
+                  сборка; способности одного юнита (MinorHeal, Flying, MineFuse) — рядом с ним
 tests/            юнит-тесты по слоям; scenarios/ — сценарии с эталонами вывода
 cmake/            CheckLayerBoundaries (границы слоёв), RunScenario (сценарные тесты)
 docs/adr/         архитектурные решения
@@ -502,30 +503,41 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 Проверка спецификации и сборка юнита — в одной функции `makeX`: причина изменения
 у них одна — «что такое этот юнит», а разделение дало бы два файла на юнит без выгоды.
 
-- `MeleeAttack` — `attack({melee, physical}, {1,1})`.
+- `MeleeAttack` — `attack({melee, physical}, дистанция)`, по умолчанию `{1,1}`; Ворону —
+  `distance(0, 1)` (параметр, а не флаг: src/Features/README.md).
 - `RangedAttack` — `attack({ranged, physical}, дистанция)`; дистанция вычисляется
   при каждом выстреле из `distance(min, max)`, где граница — число или `stat<T>`.
 - `RequireNoAdjacentOccupying` — выстрел запрещён, если в соседних клетках есть
   живой юнит с `occupiesCell`. Летающие, мины и мёртвые (до уборки) не мешают.
 
-### 5.2 Как ложатся юниты из планов
+### 5.2 Как реализованы юниты из планов
 
-| Юнит | Сборка (всё в Features) |
-|---|---|
-| **Башня** | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, distance(2, 5))`. `MARCH` на неё — ошибка валидации |
-| **Лекарь** | `Health`, `Spirit`, `Movement(1)`; `Heal(stat<Spirit>)` с `heal({heal}, {0,2})`, `MarchStep` |
-| **Ворон** | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; пример в п. 4.9); `MeleeAttack(stat<Agility>)` с дистанцией `{0,1}`, `MarchStep` |
-| **Мина** | `occupiesCell(false)`, без `Health` (поэтому не бывает целью, п. 4.9), без `Movement` (статична, `MARCH` на неё — ошибка валидации); `MineFuse(power, trigger 2, blast 3)` |
+Все четыре юнита сделаны новыми файлами по п. 5.3, `src/Core` для них не менялся; из
+существующих файлов изменён только `Features/Common/Attacks` (дистанция у `MeleeAttack`).
+Поведение, команды и критерии приёмки — [docs/units](docs/units/README.md), задачи —
+[docs/stage3](docs/stage3/README.md).
+
+| Юнит | Файлы | Сборка (всё в Features) |
+|---|---|---|
+| **Башня** | [Tower.cpp](src/Features/Units/Tower.cpp), `SpawnTower`, `TowerBinding` | `Health`, `Power`, без `Movement`; `RangedAttack(stat<Power>, distance(2, 5))`. `MARCH` на неё — ошибка валидации |
+| **Лекарь** | [Healer.cpp](src/Features/Units/Healer.cpp), `SpawnHealer`, `HealerBinding`, `UnitHealed` + `UnitHealedOutput` | `Health`, `Spirit`, `Movement(1)`; `MinorHeal(stat<Spirit>, distance(0, 2))` с `heal({heal}, …)` и фильтром «HP < max», `MarchStep` |
+| **Ворон** | [Raven.cpp](src/Features/Units/Raven.cpp), `SpawnRaven`, `RavenBinding` | `occupiesCell(false)`, тег `flying`, `Health`, `Agility`, `Movement(2)`, компонент `Flying : ITargetRule` (только для `Hostile`: `melee` → запрет, `ranged` → дистанция −1; п. 4.9); `MeleeAttack(stat<Agility>, distance(0, 1))`, `MarchStep` |
+| **Мина** | [Mine.cpp](src/Features/Units/Mine.cpp), `SpawnMine`, `MineBinding`, `MineExploded` + `MineExplodedOutput` | `occupiesCell(false)`, `Power`, без `Health` (поэтому не бывает целью, п. 4.9) и без `Movement` (`MARCH` — ошибка валидации); `MineFuse(stat<Power>)` |
+
+Способности одного юнита (`MinorHeal`, `Flying`, `MineFuse`) лежат рядом с ним, в
+`Features/Units`; в `Features/Common` их переносят, когда понадобятся второму юниту.
 
 **Мина по тикам.**
 - Тик N, Main: `MineFuse` через `ctx.query()` видит юнита с `Health` на расстоянии 0…2
-  (включая летающих; другие мины не в счёт — взрыв их не ранит) → мина взводится и ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача
-  захватывает id мины, а не указатель на неё или на действие (контракт, п. 4.13).
-  Это выполненное действие. Взведённая мина больше не действует.
-- Тик N+1, Scheduled: взрыв. `targeting().select(mine, attack({area, explosion}, {0,3}))` →
-  `effects().apply` каждой цели (включая летающих: правило `Flying` не трогает `area`) → `UNIT_ATTACKED` с
-  attacker = id мины → `requestRemoval(mine)`. Погибшие получают `UNIT_DIED` сразу
-  и в Main не ходят.
+  (включая летающих; другие мины не в счёт — взрыв их не ранит) → мина взводится и
+  ставит взрыв через `ctx.schedule(...)` на тик N+1. Задача захватывает id мины и копию
+  `stat<Power>`, а не указатель на мину или на действие (контракт, п. 4.13). Это
+  выполненное действие. Взведённая мина больше не действует.
+- Тик N+1, Scheduled: взрыв. `MINE_EXPLODED` (событие фичи через `ctx.publish`) →
+  `targeting().select(mine, attack({area, explosion}, {0,3}))` → `effects().apply` каждой
+  цели в порядке создания (включая летающих: правило `Flying` не трогает `area`) →
+  `UNIT_ATTACKED` с attacker = id мины → `requestRemoval(mine)`. Погибшие получают
+  `UNIT_DIED` сразу и в Main не ходят.
 - Тик N+1, Cleanup: мина и погибшие удаляются.
 - Пока взрыв стоит в очереди, симуляция не может закончиться (п. 4.6).
 
@@ -534,12 +546,12 @@ std::optional<DistanceRange> Flying::adjust(const TargetSpec& in, DistanceRange 
 Дистанция 0 возможна: на клетке Лекаря может оказаться юнит, не занимающий клетку.
 Правило `Flying` лечение не трогает: у него `Intent::Beneficial`. HP ограничено
 MaxHp (равно HP при спавне), в `UnitHealed` — фактически восстановленное HP. Если целей
-нет — `MarchStep`. Событие `UNIT_HEALED` добавится в IO вместе с Лекарем: DTO в
-`IO/Events` и отдельный адаптер `App/Output/UnitHealedOutput.cpp` (п. 4.11).
+нет — `MarchStep`. Событие Core `UnitHealed` выводит отдельный адаптер
+`App/Output/UnitHealedOutput.cpp` (п. 4.11); `CoreEventsOutput` не менялся.
 
 **Ворон.** «Удар когтем» бьёт юнита в соседней клетке или на своей: Ворон не занимает
-клетку и может стоять на клетке цели, а `{1,1}` её бы не достал. Дистанция `{0,1}`
-задаётся параметром `MeleeAttack`, который появится вместе с Вороном; Core не меняется.
+клетку и может стоять на клетке цели, а `{1,1}` её бы не достал. Поэтому дистанция
+`{0,1}` — параметр `MeleeAttack`. Удар когтем — ближний бой, поэтому Ворон не бьёт Ворона.
 
 ### 5.3 Как добавить новый юнит
 
