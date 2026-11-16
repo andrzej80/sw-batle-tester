@@ -33,6 +33,8 @@
 # Executables
 *.exe
 *.out
+# Эталоны stdout сценарных тестов — не исполняемые файлы
+!tests/scenarios/*/expected.out
 *.app
 
 ### CLion+all ###
