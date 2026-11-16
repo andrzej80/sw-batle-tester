@@ -39,7 +39,7 @@ namespace sw::core
 			}
 
 		private:
-			// deque: ссылки на имена не меняются при добавлении, name() отдаёт string_view на них
+			// deque: добавление не инвалидирует string_view, которые отдаёт name()
 			std::deque<std::string> _names;
 			std::unordered_map<std::string, size_t> _ids;
 		};

@@ -18,7 +18,6 @@ namespace events = sw::core::events;
 
 namespace
 {
-	// EventLog пишет в std::cout: на время теста подменяем буфер
 	class CoutCapture
 	{
 	public:
@@ -44,7 +43,6 @@ namespace
 		std::streambuf* _previous;
 	};
 
-	// Мост со всеми саморегистрированными адаптерами событий, как в приложении
 	struct Output
 	{
 		Output()
@@ -68,7 +66,6 @@ namespace
 	};
 }
 
-// Формат совпадает с выводом исходного main.cpp (docs/original_main_output.txt)
 TEST(CoreEventsOutput_prints_every_core_event_in_the_event_log_format)
 {
 	Output output;
@@ -99,11 +96,10 @@ TEST(CoreEventsOutput_does_not_print_events_without_an_output_adapter)
 {
 	Output output;
 	const CoutCapture capture;
-	output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, 3, 7});	 // DTO появится с Лекарем
+	output.bus.publish(events::UnitHealed{UnitId{1}, UnitId{2}, 3, 7});
 	CHECK(capture.text().empty());
 }
 
-// Значение вне uint32_t в выводе — баг, а не тихо искажённое число
 TEST(CoreEventsOutput_rejects_values_outside_the_output_format)
 {
 	Output output;
@@ -114,7 +110,7 @@ TEST(CoreEventsOutput_rejects_values_outside_the_output_format)
 
 TEST(EventBridge_rejects_two_adapters_for_one_event)
 {
-	Output output;	// адаптеры Core уже подключены
+	Output output;
 	CHECK_THROWS(
 		output.bridge.on<events::UnitDied>([](const events::UnitDied&, sw::EventLog&, Tick) {}), std::logic_error);
 	CHECK_THROWS(output.bridge.on<events::UnitHealed>(EventBridge::Output<events::UnitHealed>{}), std::logic_error);

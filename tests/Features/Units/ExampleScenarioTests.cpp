@@ -1,9 +1,3 @@
-// Сценарий commands_example.txt на настоящих Мечнике и Охотнике, через SetupContext и
-// Simulation — без App и формата вывода. Сверка с логом исходного main.cpp
-// (docs/original_main_output.txt): тики 1–6 совпадают полностью; на тике 7 исходный лог
-// стреляет на дистанцию 5 при range 4, по правилам задания этого выстрела нет
-// (KNOWN_ISSUES.md, п. 4), и дальше логи расходятся.
-
 #include "Core/Simulation/SimulationTestHelpers.hpp"
 #include "TestFramework/TestFramework.hpp"
 
@@ -31,7 +25,6 @@ namespace
 		return "x=" + std::to_string(position.x) + " y=" + std::to_string(position.y);
 	}
 
-	// Подписка на события Core в виде, близком к EventLog
 	void record(sw::core::EventBus& bus, const sw::core::World* const& world, Lines& log)
 	{
 		const auto at = [&world]()
@@ -85,7 +78,6 @@ TEST(ExampleScenario_plays_by_the_rules_with_real_units)
 	Lines log;
 	record(bus, world, log);
 
-	// commands_example.txt
 	CHECK(setup.createMap(10, 10).ok());
 	world = setup.world();
 	CHECK(setup.spawn(makeSwordsman({UnitId{1}, {0, 0}, 5, 2})).ok());
@@ -101,7 +93,6 @@ TEST(ExampleScenario_plays_by_the_rules_with_real_units)
 	CHECK(simulation.run() == StopReason::OneOrNoUnitsLeft);
 
 	const Lines expected{
-		// Тики 1–6 — как в логе исходного main.cpp
 		"[1] MAP_CREATED width=10 height=10",
 		"[1] UNIT_SPAWNED unitId=1 unitType=Swordsman x=0 y=0",
 		"[1] UNIT_SPAWNED unitId=2 unitType=Hunter x=9 y=0",
@@ -123,7 +114,6 @@ TEST(ExampleScenario_plays_by_the_rules_with_real_units)
 		"[5] UNIT_MOVED unitId=3 x=0 y=5",
 		"[6] UNIT_MOVED unitId=2 x=5 y=0",
 		"[6] UNIT_MOVED unitId=3 x=0 y=4",
-		// Тик 7: Охотник в (5,0), Мечник в (0,4) — дистанция 5 > range 4: выстрела нет, шаг
 		"[7] UNIT_MOVED unitId=2 x=4 y=0",
 		"[7] UNIT_MOVED unitId=3 x=0 y=3",
 		"[8] UNIT_ATTACKED attackerUnitId=2 targetUnitId=3 damage=5 targetHp=5",

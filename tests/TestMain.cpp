@@ -3,7 +3,6 @@
 #include <iostream>
 #include <string_view>
 
-// sw_tests [фильтр] — выполняет тесты, имя которых содержит фильтр
 int main(int argc, char** argv)
 {
 	if (argc > 2)

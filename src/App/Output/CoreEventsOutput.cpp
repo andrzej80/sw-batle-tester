@@ -1,9 +1,3 @@
-// Адаптеры событий Core: доменные события → io::Events → EventLog (SPECIFICATION.md,
-// п. 10.4, 10.5). Файл меняет владелец Core: набор событий Core закрыт намеренно.
-// Числа домена — int64_t, формата вывода — uint32_t: сужение только через narrow, значение
-// вне диапазона — баг (код выхода 3), а не тихо искажённый вывод.
-// UnitHealed не выводится: его DTO появится в IO вместе с Лекарем.
-
 #include "EventBridge.hpp"
 
 #include <App/Registration/Registrar.hpp>

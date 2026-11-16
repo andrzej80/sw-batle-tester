@@ -13,8 +13,6 @@
 
 namespace sw::app
 {
-	// Разобранная команда сценария: номер строки и её выполнение над SetupContext.
-	// Шаг можно выполнить несколько раз — так работают два прохода (проверка и запуск).
 	struct ScenarioStep
 	{
 		size_t line;
@@ -22,15 +20,12 @@ namespace sw::app
 		std::function<core::Result<void>(core::SetupContext&)> execute;
 	};
 
-	// Связь «DTO команды → адаптер» (SPECIFICATION.md, п. 10.2). Адаптеры регистрируются сами
-	// (SW_REGISTER_BINDING), реестр собирает из них разбор сценария.
 	class CommandRegistry
 	{
 	public:
 		template <class TCommand>
 		using Handler = std::function<core::Result<void>(const TCommand&, core::SetupContext&)>;
 
-		// Команда уже зарегистрирована или обработчик пустой — std::logic_error (баг сборки)
 		template <class TCommand>
 		CommandRegistry& on(Handler<TCommand> handler)
 		{
@@ -61,7 +56,6 @@ namespace sw::app
 			return *this;
 		}
 
-		// Регистрирует все команды в parser; разобранные шаги складываются в steps
 		void installInto(io::CommandParser& parser, std::vector<ScenarioStep>& steps) const;
 
 	private:

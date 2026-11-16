@@ -7,9 +7,6 @@
 
 namespace sw::core
 {
-	// Сужение целого с проверкой: значение вне диапазона To — std::logic_error.
-	// Единственный способ перевести доменное int64_t в uint32_t формата вывода
-	// (SPECIFICATION.md, п. 1.4). Выход за диапазон — баг, а не ошибка ввода.
 	template <std::integral To, std::integral From>
 	To narrow(From value)
 	{

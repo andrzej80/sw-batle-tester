@@ -1,6 +1,3 @@
-// Приложение целиком: разбор, проход проверки, проход запуска, вывод (SPECIFICATION.md,
-// п. 6.1, 10). Случайность детерминирована (FirstRandom), остальное — как в main.
-
 #include "App/AppTestHelpers.hpp"
 #include "TestFramework/TestFramework.hpp"
 
@@ -11,8 +8,6 @@ using sw::app::exit_code::InvalidScenario;
 using sw::app::exit_code::Success;
 using namespace sw::test;
 
-// commands_example.txt: тики 1–6 совпадают с логом исходного main.cpp
-// (docs/original_main_output.txt), с тика 7 — по правилам задания (KNOWN_ISSUES.md, п. 4)
 TEST(Pipeline_prints_events_of_the_example_scenario)
 {
 	const AppRun run = runApplication(
@@ -53,8 +48,6 @@ TEST(Pipeline_prints_events_of_the_example_scenario)
 					"[9] UNIT_DIED unitId=3 \n"));
 }
 
-// Готово T15: при ошибках stdout пуст; ошибки — в порядке строк; у duplicate_id и
-// cell_occupied — строка спавна связанного юнита
 TEST(Pipeline_reports_the_full_list_of_errors_and_prints_no_events)
 {
 	const AppRun run = runApplication(
@@ -86,10 +79,8 @@ TEST(Pipeline_reports_the_full_list_of_errors_and_prints_no_events)
 			"7 errors, simulation not started.\n"));
 }
 
-// Решение 0.4 и согласованное правило п. 7: последствия не дают лишних ошибок
 TEST(Pipeline_suppresses_consequences_of_earlier_errors)
 {
-	// Строка CREATE_MAP не разобралась — для правил это неудачный CREATE_MAP
 	const AppRun brokenMap
 		= runApplication("pipeline_broken_map", "CREATE_MAP 10 x\nSPAWN_SWORDSMAN 1 0 0 5 2\nMARCH 1 3 3\n");
 	CHECK_EQ(brokenMap.code, InvalidScenario);
@@ -100,7 +91,6 @@ TEST(Pipeline_suppresses_consequences_of_earlier_errors)
 			"\"x\"\n"
 			"1 error, simulation not started.\n"));
 
-	// Спавн отклонён — MARCH на этот id ошибок не даёт
 	const AppRun rejected
 		= runApplication("pipeline_rejected", "CREATE_MAP 10 10\nSPAWN_SWORDSMAN 1 0 0 0 2\nMARCH 1 3 3\n");
 	CHECK_EQ(

@@ -10,13 +10,11 @@ using sw::core::TagSet;
 
 namespace
 {
-	// Так фичи объявляют теги: константа рядом с кодом фичи
 	const Tag Fire{"fire"};
 	const Tag Melee{"melee"};
 	const Tag Ranged{"ranged"};
 }
 
-// Приёмка SPECIFICATION.md, п. 1.3: одно имя в разных единицах трансляции — один тег
 TEST(Tag_with_the_same_name_is_the_same_tag_across_translation_units)
 {
 	CHECK(Fire == sw::test::fireTagFromOtherUnit());

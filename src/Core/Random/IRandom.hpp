@@ -6,8 +6,6 @@
 
 namespace sw::core
 {
-	// Источник случайности передаётся в Core снаружи (ARCHITECTURE.md, п. 4.12): в
-	// приложении — StdRandom, в тестах — фиксированный seed или заглушка.
 	class IRandom
 	{
 	public:
@@ -19,7 +17,6 @@ namespace sw::core
 		IRandom(IRandom&&) = delete;
 		IRandom& operator=(IRandom&&) = delete;
 
-		// Случайный индекс в [0, count); count == 0 — std::logic_error
 		virtual size_t index(size_t count) = 0;
 	};
 
@@ -28,7 +25,6 @@ namespace sw::core
 	public:
 		explicit StdRandom(uint64_t seed);
 
-		// seed от std::random_device: каждый запуск приложения — своя последовательность
 		static uint64_t seedFromDevice();
 
 		size_t index(size_t count) override;

@@ -15,24 +15,17 @@
 
 namespace sw::io
 {
-	// Ошибка в строке сценария. Без имени файла: его добавляет App.
 	struct ParseDiagnostic
 	{
-		size_t line;		  // номер строки файла, с 1
-		std::string command;  // имя команды; пусто — команда не распознана
-		std::string code;  // parse.unknown_command, parse.missing_argument, parse.extra_argument, parse.invalid_number
+		size_t line;
+		std::string command;
+		std::string code;
 		std::string message;
 	};
 
-	// Разбор файла сценария (SPECIFICATION.md, п. 8.1). На пользовательском вводе не бросает
-	// исключений: собирает ошибки всех строк, чтобы показать полный список. Строка с ошибкой
-	// в обработчик не передаётся.
-	//
-	// Пустые строки и строки, начинающиеся с "//", пропускаются.
 	class CommandParser
 	{
 	public:
-		// Команда с таким именем уже зарегистрирована — std::logic_error
 		template <class TCommand>
 		CommandParser& add(std::function<void(TCommand, size_t line)> handler)
 		{

@@ -26,7 +26,6 @@ using namespace sw::test;
 
 namespace
 {
-	// Адаптеры для тестов: только запоминают вызовы
 	std::vector<std::string> calls;
 
 	void bindCreateMap(CommandRegistry& registry)
@@ -49,7 +48,6 @@ namespace
 			});
 	}
 
-	// Проверка самого макроса: адаптер попадает в общий список
 	struct ProbeCommand
 	{
 		constexpr static const char* Name = "SW_TEST_PROBE";
@@ -110,7 +108,6 @@ TEST(ScenarioLoader_turns_lines_into_repeatable_steps)
 	CHECK_EQ(scenario.parseErrors[0].code, std::string("parse.unknown_command"));
 	CHECK_EQ(scenario.parseErrors[1].code, std::string("parse.missing_argument"));
 
-	// Шаг можно выполнить дважды: на этом держатся два прохода — проверка и запуск
 	calls.clear();
 	sw::core::EventBus bus;
 	SetupContext first(bus);
@@ -123,7 +120,6 @@ TEST(ScenarioLoader_turns_lines_into_repeatable_steps)
 	CHECK(calls == (std::vector<std::string>{"CREATE_MAP 10x5", "CREATE_MAP 10x5", "MARCH 7", "MARCH 7"}));
 }
 
-// Формат SPECIFICATION.md, п. 10.3
 TEST(DiagnosticPrinter_prints_errors_in_line_order_with_summary)
 {
 	std::ostringstream output;
@@ -157,7 +153,6 @@ TEST(DiagnosticPrinter_uses_singular_for_one_error)
 	CHECK(output.str().find("1 error, simulation not started.") != std::string::npos);
 }
 
-// Таблица SPECIFICATION.md, п. 10.1
 TEST(Application_without_exactly_one_argument_prints_usage)
 {
 	std::string errors;
@@ -185,7 +180,6 @@ TEST(Application_prints_all_parse_errors_and_does_not_start)
 		!= std::string::npos);
 	CHECK(errors.find(":3: [parse.unknown_command]: unknown command 'FLY'") != std::string::npos);
 	CHECK(errors.find("2 errors, simulation not started.") != std::string::npos);
-	// Проход проверки выполняет разобравшиеся строки, чтобы найти все ошибки; запуска нет
 	CHECK(calls == (std::vector<std::string>{"MARCH 1"}));
 }
 
@@ -193,7 +187,6 @@ TEST(Application_turns_internal_errors_into_exit_code_three)
 {
 	const TempScenario scenario("internal_error", "MARCH 1 2 3\n");
 	std::string errors;
-	// Одна команда зарегистрирована дважды — баг сборки приложения
 	CHECK_EQ(runApp({&bindMarch, &bindMarch}, {scenario.path()}, errors), sw::app::exit_code::InternalError);
 	CHECK(errors.find("internal error: CommandRegistry: command MARCH is registered twice") != std::string::npos);
 }

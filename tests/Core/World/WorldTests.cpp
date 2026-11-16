@@ -26,15 +26,13 @@ namespace
 	}
 }
 
-// Приёмка SPECIFICATION.md, п. 4: на занятую клетку не встать юниту, занимающему клетку,
-// а юниту без occupiesCell — можно
 TEST(World_place_respects_cell_occupancy)
 {
 	World world(10, 10);
 	world.place(makeUnit({.id = 1, .position = {3, 3}}));
 
 	CHECK_THROWS(world.place(makeUnit({.id = 2, .position = {3, 3}})), std::logic_error);
-	world.place(makeUnit({.id = 3, .position = {3, 3}, .occupiesCell = false}));  // Ворон над мечником
+	world.place(makeUnit({.id = 3, .position = {3, 3}, .occupiesCell = false}));
 
 	CHECK(world.map().occupant({3, 3}) == UnitId{1});
 	CHECK_EQ(world.units().size(), size_t{2});
@@ -60,7 +58,6 @@ TEST(World_keeps_creation_order)
 	CHECK(world.units().orderedIds() == expected);
 }
 
-// Приёмка п. 4: removePending освобождает клетку; мёртвый держит клетку до уборки
 TEST(World_dead_unit_keeps_its_cell_until_cleanup)
 {
 	World world(10, 10);
@@ -88,10 +85,9 @@ TEST(World_removes_units_marked_for_removal_without_health)
 	CHECK_EQ(world.removePending(), size_t{0});
 	mine.requestRemoval();
 	CHECK_EQ(world.removePending(), size_t{1});
-	CHECK(world.map().occupant({4, 4}) == UnitId{2});  // мина клетку не занимала
+	CHECK(world.map().occupant({4, 4}) == UnitId{2});
 }
 
-// Приёмка п. 4: unitsInRange не возвращает мёртвых
 TEST(SpatialQuery_finds_only_alive_units_in_range)
 {
 	World world(10, 10);
@@ -115,7 +111,7 @@ TEST(SpatialQuery_neighbours_are_alive_units_at_distance_one)
 	World world(10, 10);
 	world.place(makeUnit({.id = 1, .position = {5, 5}}));
 	world.place(makeUnit({.id = 2, .position = {6, 6}}));
-	world.place(makeUnit({.id = 3, .position = {5, 5}, .occupiesCell = false}));  // на той же клетке
+	world.place(makeUnit({.id = 3, .position = {5, 5}, .occupiesCell = false}));
 	world.place(makeUnit({.id = 4, .position = {7, 5}}));
 
 	CHECK(ids(world.query().neighbours({5, 5})) == (std::vector<uint32_t>{2}));
@@ -131,7 +127,7 @@ TEST(SpatialQuery_free_cell_depends_on_occupancy_of_the_mover)
 	CHECK(!world.query().isFreeFor(walker, {5, 5}));
 	CHECK(world.query().isFreeFor(flyer, {5, 5}));
 	CHECK(world.query().isFreeFor(walker, {4, 5}));
-	CHECK(!world.query().isFreeFor(flyer, {10, 5}));  // вне карты — никому
+	CHECK(!world.query().isFreeFor(flyer, {10, 5}));
 }
 
 TEST(ActivityTracker_empty_tick_and_change_counter)
@@ -141,7 +137,7 @@ TEST(ActivityTracker_empty_tick_and_change_counter)
 	CHECK(tracker.tickWasEmpty());
 
 	tracker.markChange();
-	CHECK(tracker.tickWasEmpty());	// изменение без действия не делает тик непустым
+	CHECK(tracker.tickWasEmpty());
 	CHECK_EQ(tracker.changes(), uint64_t{1});
 
 	tracker.markAction();
@@ -149,7 +145,7 @@ TEST(ActivityTracker_empty_tick_and_change_counter)
 
 	tracker.beginTick();
 	CHECK(tracker.tickWasEmpty());
-	CHECK_EQ(tracker.changes(), uint64_t{1});  // счётчик изменений не сбрасывается
+	CHECK_EQ(tracker.changes(), uint64_t{1});
 
 	tracker.markScheduled();
 	CHECK(!tracker.tickWasEmpty());

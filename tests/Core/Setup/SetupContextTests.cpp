@@ -32,19 +32,16 @@ namespace
 		return list;
 	}
 
-	// Заявка на спавн собранного юнита
 	SpawnRequest valid(const TestUnit& description)
 	{
 		return {UnitId{description.id}, description.position, description.occupiesCell, makeUnit(description)};
 	}
 
-	// Заявка, в которой фабрика нашла ошибку статов
 	SpawnRequest invalidStats(uint32_t id, Position position)
 	{
 		return {UnitId{id}, position, true, Diagnostic{"unit.invalid_stat", "hp must be positive, got 0"}};
 	}
 
-	// Подвижный юнит: Movement нужен для маршей
 	TestUnit mover(uint32_t id, Position position)
 	{
 		return {
@@ -97,8 +94,6 @@ TEST(SetupContext_rejects_invalid_and_repeated_map)
 	CHECK(setup.log.empty());
 }
 
-// Согласовано: после CREATE_MAP с ошибкой map.not_created не выводится,
-// но ошибки самих спавнов — выводятся
 TEST(SetupContext_failed_map_suppresses_missing_map_errors)
 {
 	Setup setup;
@@ -115,8 +110,8 @@ TEST(SetupContext_command_before_the_map_reports_missing_map_once)
 	Setup setup;
 	CHECK(codes(setup.context.spawn(valid({.id = 1, .position = {0, 0}}))) == (Codes{"map.not_created"}));
 	CHECK(setup.context.spawn(valid({.id = 2, .position = {1, 0}})).ok());
-	CHECK(setup.context.orderMarch(UnitId{1}, {5, 5}).ok());  // спавн отклонён — последствие
-	CHECK(setup.context.finish().ok());						  // уже сообщено
+	CHECK(setup.context.orderMarch(UnitId{1}, {5, 5}).ok());
+	CHECK(setup.context.finish().ok());
 }
 
 TEST(SetupContext_scenario_without_map_is_an_error)
@@ -145,7 +140,6 @@ TEST(SetupContext_duplicate_id_points_to_the_first_unit)
 	const Result<void> result = setup.context.spawn(valid({.id = 1, .position = {5, 5}}));
 	CHECK(codes(result) == (Codes{"unit.duplicate_id"}));
 	CHECK(result.errors()[0].relatedUnit == UnitId{1});
-	// Марш на этот id относится к первому юниту и проверяется как обычно
 	CHECK(setup.context.orderMarch(UnitId{1}, {3, 0}).ok());
 	CHECK(codes(setup.context.orderMarch(UnitId{1}, {3, 0})) == (Codes{"march.same_position"}));
 }
@@ -169,11 +163,9 @@ TEST(SetupContext_spawn_into_occupied_cell)
 	const Result<void> result = setup.context.spawn(valid({.id = 7, .position = {9, 0}}));
 	CHECK(codes(result) == (Codes{"unit.cell_occupied"}));
 	CHECK(result.errors()[0].relatedUnit == UnitId{2});
-	// Юниту, не занимающему клетку, можно
 	CHECK(setup.context.spawn(valid({.id = 8, .position = {9, 0}, .occupiesCell = false})).ok());
 }
 
-// Приёмка п. 7: у спавна с плохими статами и занятой клеткой — обе ошибки
 TEST(SetupContext_reports_all_errors_of_one_spawn)
 {
 	Setup setup;
@@ -190,18 +182,17 @@ TEST(SetupContext_march_for_missing_or_rejected_unit)
 {
 	Setup setup;
 	static_cast<void>(setup.context.createMap(10, 10));
-	// MARCH до SPAWN — юнита ещё нет
 	CHECK(codes(setup.context.orderMarch(UnitId{5}, {1, 1})) == (Codes{"march.unit_not_found"}));
 
 	static_cast<void>(setup.context.spawn(invalidStats(6, {0, 0})));
-	CHECK(setup.context.orderMarch(UnitId{6}, {1, 1}).ok());  // последствие отклонённого спавна
+	CHECK(setup.context.orderMarch(UnitId{6}, {1, 1}).ok());
 }
 
 TEST(SetupContext_static_unit_cannot_march)
 {
 	Setup setup;
 	static_cast<void>(setup.context.createMap(10, 10));
-	static_cast<void>(setup.context.spawn(valid({.id = 1, .position = {0, 0}})));  // без Movement
+	static_cast<void>(setup.context.spawn(valid({.id = 1, .position = {0, 0}})));
 
 	const Result<void> result = setup.context.orderMarch(UnitId{1}, {1, 1});
 	CHECK(codes(result) == (Codes{"march.unit_cannot_move"}));
@@ -224,9 +215,8 @@ TEST(SetupContext_march_to_where_the_unit_will_already_be)
 
 	CHECK(codes(setup.context.orderMarch(UnitId{1}, {2, 2})) == (Codes{"march.same_position"}));
 	CHECK(setup.context.orderMarch(UnitId{1}, {5, 5}).ok());
-	// Для очереди «текущая позиция» — конец предыдущего марша
 	CHECK(codes(setup.context.orderMarch(UnitId{1}, {5, 5})) == (Codes{"march.same_position"}));
-	CHECK(setup.context.orderMarch(UnitId{1}, {2, 2}).ok());  // обратно — уже не то же место
+	CHECK(setup.context.orderMarch(UnitId{1}, {2, 2}).ok());
 }
 
 TEST(SetupContext_first_march_starts_now_and_next_ones_queue)

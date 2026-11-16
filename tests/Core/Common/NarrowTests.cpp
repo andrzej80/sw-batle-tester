@@ -6,7 +6,6 @@
 
 using sw::core::narrow;
 
-// Приёмка SPECIFICATION.md, п. 1.4
 TEST(Narrow_rejects_values_outside_uint32)
 {
 	CHECK_THROWS(narrow<uint32_t>(int64_t{-1}), std::logic_error);

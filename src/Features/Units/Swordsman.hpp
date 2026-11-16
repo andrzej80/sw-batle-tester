@@ -6,9 +6,6 @@
 
 namespace sw::features
 {
-	// Мечник (README задания): HP, Strength.
-	// Сокрушающий удар — случайный юнит в соседней клетке, урон Strength; если бить
-	// некого — шаг марша. Ничего не знает про формат ввода: его заполняет App/Bindings.
 	struct SwordsmanSpec
 	{
 		core::UnitId id;
@@ -17,7 +14,5 @@ namespace sw::features
 		int64_t strength;
 	};
 
-	// Проверяет hp > 0 и strength > 0 (unit.invalid_stat) и возвращает все ошибки сразу.
-	// Заявка несёт id, позицию и занятость клетки и тогда, когда юнит не собрался.
 	core::SpawnRequest makeSwordsman(const SwordsmanSpec& spec);
 }

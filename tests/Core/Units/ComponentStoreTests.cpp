@@ -75,7 +75,6 @@ TEST(ComponentStore_remove_drops_component_from_hook_index)
 
 TEST(ComponentStore_accepts_components_known_only_at_runtime)
 {
-	// Так добавляются статусы: Interaction получает std::unique_ptr<Status>
 	ComponentStore store;
 	std::unique_ptr<sw::core::IComponent> status = std::make_unique<ModifierComponent>();
 	store.add(typeid(ModifierComponent), std::move(status));

@@ -5,8 +5,6 @@
 #include <Core/Interaction/TargetSpec.hpp>
 #include <utility>
 
-// Именованные конструкторы TargetSpec (ARCHITECTURE.md, п. 4.9): четыре слова для
-// действий, а оси Intent и Effect остаются раздельными для правил и модификаторов.
 namespace sw::features
 {
 	inline core::TargetSpec attack(core::TagSet tags, core::DistanceRange range)

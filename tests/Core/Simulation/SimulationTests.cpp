@@ -19,7 +19,6 @@ namespace
 {
 	using Log = std::vector<std::string>;
 
-	// Действие «всегда что-то делает»: выполнено, но мир не меняет (как лечение на 0)
 	LambdaAction::Body alwaysDone()
 	{
 		return [](const Unit&, TurnContext&)
@@ -97,7 +96,6 @@ TEST(Simulation_first_successful_action_ends_the_turn)
 	CHECK(calls == (Log{"attack", "special"}));
 }
 
-// Решение по правилам: мёртвый не действует, даже если ещё не ходил в этом тике
 TEST(Simulation_unit_killed_before_its_turn_does_not_act)
 {
 	SimArena arena(10, 10);
@@ -123,7 +121,7 @@ TEST(Simulation_unit_killed_before_its_turn_does_not_act)
 	CHECK(arena.simulation.runTick() == std::nullopt);
 	CHECK(acted.empty());
 	CHECK(arena.log == (Log{"[2] died 2"}));
-	CHECK(arena.world.units().find(UnitId{2}) == nullptr);	// убран в Cleanup
+	CHECK(arena.world.units().find(UnitId{2}) == nullptr);
 	CHECK(!arena.world.map().isOccupied({1, 0}));
 }
 
@@ -153,7 +151,7 @@ TEST(Simulation_detects_action_that_changed_the_world_but_returned_false)
 		 .actions = {[](const Unit& self, TurnContext& context)
 					 {
 						 context.movement().stepTo(self, {1, 0}, context);
-						 return false;	// нарушение контракта
+						 return false;
 					 }}});
 	arena.spawn({.id = 2, .position = {9, 9}});
 
@@ -181,8 +179,6 @@ TEST(Simulation_stops_at_the_tick_limit)
 	CHECK_EQ(arena.world.tick(), Tick{5});
 }
 
-// Как мина: взводится (действие), взрывается в следующем тике в фазе Scheduled,
-// убирается в Cleanup; пока взрыв в очереди, симуляция не останавливается
 TEST(Simulation_runs_scheduled_effects_first_and_waits_for_pending_ones)
 {
 	SimArena arena(10, 10);
@@ -224,8 +220,6 @@ TEST(Simulation_runs_scheduled_effects_first_and_waits_for_pending_ones)
 	arena.spawn({.id = 3, .position = {9, 9}});
 
 	CHECK(arena.simulation.run() == StopReason::NothingHappened);
-	// тики 3 и 4 пустые, но взрыв в очереди — симуляция идёт дальше; тик 5 — взрыв
-	// (фаза Scheduled — раньше хода юнитов), тик 6 — пустой, очередь пуста
 	CHECK(
 		timeline
 		== (Log{"armed at 2", "main at 2", "main at 3", "main at 4", "exploded at 5", "main at 5", "main at 6"}));
@@ -240,9 +234,9 @@ TEST(Simulation_removes_expired_statuses_in_cleanup)
 	arena.spawn({.id = 2, .position = {9, 9}});
 	unit.components().add<Burning>(Tick{3});
 
-	CHECK(arena.simulation.runTick() == std::nullopt);	// тик 2
+	CHECK(arena.simulation.runTick() == std::nullopt);
 	CHECK(unit.has<Burning>());
-	CHECK(arena.simulation.runTick() == std::nullopt);	// тик 3: истёк к концу тика
+	CHECK(arena.simulation.runTick() == std::nullopt);
 	CHECK(!unit.has<Burning>());
 }
 

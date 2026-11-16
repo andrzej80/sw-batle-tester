@@ -14,7 +14,6 @@ using namespace sw::test;
 
 namespace
 {
-	// Сдвигает минимальную границу на +1 и записывает, что получило
 	class ShiftingRule final : public sw::core::IComponent, public ITargetRule
 	{
 	public:
@@ -50,7 +49,6 @@ namespace
 	};
 }
 
-// Автор действия обязан выбрать Intent и Effect
 static_assert(!std::is_default_constructible_v<TargetSpec>);
 
 TEST(Targeting_skips_source_dead_and_removed_units)
@@ -85,7 +83,7 @@ TEST(Targeting_damage_and_heal_need_health_but_status_does_not)
 {
 	Arena arena;
 	const Unit& source = arena.spawn({.id = 1, .position = {5, 5}});
-	arena.spawn({.id = 2, .position = {6, 5}, .occupiesCell = false, .hp = std::nullopt});	// мина
+	arena.spawn({.id = 2, .position = {6, 5}, .occupiesCell = false, .hp = std::nullopt});
 
 	CHECK(arena.targeting.select(source, meleeAttack()).empty());
 	CHECK(arena.targeting.select(source, touchHeal()).empty());
@@ -107,8 +105,6 @@ TEST(Targeting_applies_action_filter)
 	CHECK(idsOf(arena.targeting.select(healer, touchHeal(), notFull)) == (std::vector<uint32_t>{2}));
 }
 
-// Правила цели задаёт цель: иммунитет Ворона к ближнему бою, стрелкам дистанция −1,
-// лечение и баффы не затрагиваются
 TEST(Targeting_raven_rule_limits_only_hostile_actions)
 {
 	Arena arena;
@@ -117,13 +113,11 @@ TEST(Targeting_raven_rule_limits_only_hostile_actions)
 	{
 		components.add<FlyingRule>();
 	};
-	arena.spawn({.id = 2, .position = {6, 5}, .occupiesCell = false, .components = flying});  // дистанция 1
-	arena.spawn({.id = 3, .position = {9, 5}, .occupiesCell = false, .components = flying});  // дистанция 4
+	arena.spawn({.id = 2, .position = {6, 5}, .occupiesCell = false, .components = flying});
+	arena.spawn({.id = 3, .position = {9, 5}, .occupiesCell = false, .components = flying});
 
 	CHECK(arena.targeting.select(attacker, meleeAttack()).empty());
-	// {2,4} для Ворона становится {1,3}: ближний — в досягаемости, дальний — уже нет
 	CHECK(idsOf(arena.targeting.select(attacker, rangedAttack({2, 4}))) == (std::vector<uint32_t>{2}));
-	// лечение касанием (тег melee, но Beneficial) правило не трогает
 	CHECK(idsOf(arena.targeting.select(attacker, touchHeal())) == (std::vector<uint32_t>{2}));
 }
 
@@ -141,7 +135,6 @@ TEST(Targeting_rules_are_chained_in_order_of_addition)
 			 components.add<RecordingRule>(seen);
 		 }});
 
-	// {2,4} → ShiftingRule → {3,4}: цель на дистанции 2 уже недосягаема
 	CHECK(arena.targeting.select(source, rangedAttack({2, 4})).empty());
 	CHECK(seen == (std::vector<DistanceRange>{{2, 4}, {3, 4}}));
 }

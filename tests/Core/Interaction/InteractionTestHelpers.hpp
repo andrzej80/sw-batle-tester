@@ -1,8 +1,5 @@
 #pragma once
 
-// Правила, модификаторы и статусы для тестов Interaction. Core не знает конкретных
-// механик, поэтому тесты объявляют свои — так же, как это будут делать фичи.
-
 #include "Core/World/WorldTestHelpers.hpp"
 
 #include <Core/Events/CoreEvents.hpp>
@@ -45,7 +42,6 @@ namespace sw::test
 		return {core::Intent::Hostile, core::Effect::Status, {Melee}, range};
 	}
 
-	// Правило цели Ворона (ARCHITECTURE.md, п. 4.9)
 	struct FlyingRule final : core::IComponent, core::ITargetRule
 	{
 		std::optional<core::DistanceRange> adjust(const core::TargetSpec& in, core::DistanceRange range) const override
@@ -66,7 +62,6 @@ namespace sw::test
 		}
 	};
 
-	// Цель нельзя выбрать ничем
 	struct UntargetableRule final : core::IComponent, core::ITargetRule
 	{
 		std::optional<core::DistanceRange> adjust(const core::TargetSpec&, core::DistanceRange) const override
@@ -75,8 +70,6 @@ namespace sw::test
 		}
 	};
 
-	// Модификатор с журналом вызовов. Id делает типы разными: компонент каждого типа
-	// у юнита один, а для проверки порядка нужно несколько модификаторов.
 	template <int Id>
 	class LoggingModifier final : public core::IComponent, public core::IHitModifier
 	{
@@ -103,7 +96,6 @@ namespace sw::test
 		int _priority;
 	};
 
-	// Щит: поглощает урон, пока не кончится запас
 	class Shield final : public core::IComponent, public core::IHitModifier
 	{
 	public:
@@ -131,7 +123,6 @@ namespace sw::test
 		int64_t _left;
 	};
 
-	// Запрет лечения: обнуляет только Heal
 	struct HealBan final : core::IComponent, core::IHitModifier
 	{
 		int priority() const override
@@ -148,7 +139,6 @@ namespace sw::test
 		}
 	};
 
-	// Нарушает контракт: делает amount отрицательным
 	struct NegativeModifier final : core::IComponent, core::IHitModifier
 	{
 		int priority() const override
@@ -162,7 +152,6 @@ namespace sw::test
 		}
 	};
 
-	// Статус по умолчанию: повторное наложение заменяет старый
 	struct Burning final : core::Status
 	{
 		explicit Burning(core::Tick expiresAt) :
@@ -170,7 +159,6 @@ namespace sw::test
 		{}
 	};
 
-	// Статус со стаками: повторное наложение добавляет стак и продлевает срок
 	class StackingPoison final : public core::Status
 	{
 	public:
@@ -188,7 +176,6 @@ namespace sw::test
 		int stacks = 1;
 	};
 
-	// Статус-модификатор: щит, наложенный во время боя
 	class ShieldStatus final : public core::Status, public core::IHitModifier
 	{
 	public:
@@ -207,7 +194,6 @@ namespace sw::test
 		}
 	};
 
-	// Мир + шина + отбор + применение; журнал опубликованных событий
 	struct Arena
 	{
 		Arena()

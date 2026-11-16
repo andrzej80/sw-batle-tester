@@ -12,29 +12,20 @@
 
 namespace sw::core
 {
-	// Всё, из чего собирается юнит. Заполняет UnitBuilder в Features, юнита из него
-	// создаёт Core.
 	struct UnitBlueprint
 	{
 		UnitId id;
-		std::string type;  // "Swordsman"; выводится в UNIT_SPAWNED
+		std::string type;
 		Position position;
 		bool occupiesCell = true;
 		TagSet tags;
 		ComponentStore components;
-		std::vector<std::unique_ptr<IAction>> behaviour;  // по приоритету
+		std::vector<std::unique_ptr<IAction>> behaviour;
 	};
 
-	// Юнит (ARCHITECTURE.md, п. 4.1; SPECIFICATION.md, п. 3.1).
-	//
-	// Фичи получают юнита только как const Unit&: читать можно всё, а менять мир —
-	// только через фасады TurnContext. Изменяющие методы ниже вызывает Core:
-	// позицию — MovementService, Health — Interaction, марши — SetupContext и MarchStep.
 	class Unit
 	{
 	public:
-		// Проверяет требования всех действий к компонентам. Недостающие — std::logic_error
-		// со списком «действие → компонент»: это баг сборки юнита, а не ошибка ввода.
 		explicit Unit(UnitBlueprint blueprint);
 
 		UnitId id() const
@@ -62,7 +53,6 @@ namespace sw::core
 			return _tags;
 		}
 
-		// HP ≤ 0. Юнит без Health не умирает — его можно только удалить (Мина)
 		bool isDead() const;
 
 		bool isRemovalRequested() const
@@ -110,7 +100,6 @@ namespace sw::core
 			return _components;
 		}
 
-		// Только для Simulation: действия вызываются с изменяемым состоянием
 		std::vector<std::unique_ptr<IAction>>& behaviour()
 		{
 			return _behaviour;

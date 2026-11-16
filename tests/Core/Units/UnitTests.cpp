@@ -65,14 +65,12 @@ TEST(Unit_dies_when_hp_drops_to_zero_or_below)
 
 TEST(Unit_without_health_never_dies)
 {
-	// Мина: у неё нет HP, её можно только удалить
 	Unit mine(blueprint("Mine"));
 	CHECK(!mine.isDead());
 	mine.requestRemoval();
 	CHECK(mine.isRemovalRequested());
 }
 
-// Приёмка SPECIFICATION.md, п. 3.3: действие без нужного компонента — ошибка при сборке
 TEST(Unit_with_action_missing_a_component_is_not_built)
 {
 	UnitBlueprint parts = blueprint("Tower");
@@ -116,7 +114,7 @@ TEST(Unit_hook_index_survives_moving_the_unit)
 	const auto& rule = parts.components.add<RuleComponent>();
 	std::vector<Unit> units;
 	units.emplace_back(std::move(parts));
-	units.emplace_back(blueprint("Other"));	 // перевыделение памяти вектора
+	units.emplace_back(blueprint("Other"));
 
 	CHECK_EQ(units[0].components().targetRules().size(), size_t{1});
 	CHECK(units[0].components().targetRules()[0] == &rule);

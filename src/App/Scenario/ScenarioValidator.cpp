@@ -33,8 +33,6 @@ namespace sw::app
 			return error;
 		}
 
-		// Юниты, появившиеся в мире после шага: их строка спавна — строка этого шага.
-		// Так строки спавна узнаются без знания конкретных команд.
 		void rememberSpawns(core::SetupContext& setup, size_t line, SpawnLines& spawnLines)
 		{
 			const core::World* world = setup.world();

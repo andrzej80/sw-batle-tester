@@ -81,8 +81,6 @@ TEST(Result_void_is_success_or_errors)
 	CHECK_EQ(failure.errors()[0].relatedUnit.value(), UnitId{1});
 }
 
-// Главный сценарий использования: проход проверки сценария собирает ошибки всех шагов
-// без проверки ok() — у успешных шагов добавляется пустой список
 TEST(Result_errors_of_all_steps_can_be_collected_without_ok_checks)
 {
 	const Result<void> steps[] = {Result<void>{}, Diagnostic{"a", "first"}, Result<void>{}, Diagnostic{"b", "second"}};

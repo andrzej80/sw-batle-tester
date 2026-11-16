@@ -19,7 +19,6 @@
 
 namespace sw::test
 {
-	// Всегда первый вариант: сценарии детерминированы
 	struct FirstRandom final : core::IRandom
 	{
 		size_t index(size_t count) override
@@ -32,7 +31,6 @@ namespace sw::test
 		}
 	};
 
-	// Действие из лямбды: удобно описывать поведение прямо в тесте
 	class LambdaAction final : public core::IAction
 	{
 	public:
@@ -55,14 +53,13 @@ namespace sw::test
 	{
 		uint32_t id;
 		core::Position position;
-		std::optional<int64_t> speed = 1;  // nullopt — статичный юнит без Movement
+		std::optional<int64_t> speed = 1;
 		bool occupiesCell = true;
 		std::optional<int64_t> hp = 10;
-		std::vector<LambdaAction::Body> actions = {};  // до MarchStep
-		bool marches = true;						   // добавить MarchStep последним
+		std::vector<LambdaAction::Body> actions = {};
+		bool marches = true;
 	};
 
-	// Мир, шина, случайность, симуляция и журнал событий движения и боя
 	struct SimArena
 	{
 		SimArena(int64_t width, int64_t height) :

@@ -15,7 +15,6 @@ using namespace sw::test;
 
 namespace
 {
-	// Болото: вход в клетку стоит на cost больше
 	struct Swamp final : IMoveCostModifier
 	{
 		explicit Swamp(int64_t extra) :
@@ -30,7 +29,6 @@ namespace
 		int64_t extra;
 	};
 
-	// Нарушает контракт: стоимость < 1
 	struct BrokenCost final : IMoveCostModifier
 	{
 		int64_t moveCost(const Unit&, int64_t) const override
@@ -65,15 +63,14 @@ TEST(Map_occupy_and_release)
 	CHECK(map.occupant({2, 3}) == UnitId{1});
 	CHECK(map.occupant({3, 3}) == std::nullopt);
 
-	CHECK_THROWS(map.occupy({2, 3}, UnitId{2}), std::logic_error);	 // уже занята
-	CHECK_THROWS(map.occupy({10, 0}, UnitId{2}), std::logic_error);	 // вне карты
-	CHECK_THROWS(map.release({2, 3}, UnitId{2}), std::logic_error);	 // занята другим
+	CHECK_THROWS(map.occupy({2, 3}, UnitId{2}), std::logic_error);
+	CHECK_THROWS(map.occupy({10, 0}, UnitId{2}), std::logic_error);
+	CHECK_THROWS(map.release({2, 3}, UnitId{2}), std::logic_error);
 
 	map.release({2, 3}, UnitId{1});
 	CHECK(!map.isOccupied({2, 3}));
 }
 
-// Приёмка SPECIFICATION.md, п. 1.4: сосед клетки (0,0) слева не создаётся как (4294967295,0)
 TEST(Map_neighbours_of_a_corner_do_not_wrap_around)
 {
 	const Map map(4294967295, 4294967295);
@@ -88,7 +85,6 @@ TEST(Map_neighbours_inside_are_all_eight_in_fixed_order)
 	CHECK(map.neighbourCells({5, 5}) == expected);
 }
 
-// Приёмка SPECIFICATION.md, п. 4.1: самая большая карта без выделения памяти под клетки
 TEST(Map_largest_map_is_stored_sparsely)
 {
 	Map map(4294967295, 4294967295);

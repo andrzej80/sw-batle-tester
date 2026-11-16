@@ -63,7 +63,6 @@ TEST(Swordsman_is_assembled_from_its_spec)
 	CHECK_EQ(swordsman.get<sw::core::Movement>().speed, int64_t{1});
 }
 
-// Приёмка п. 9.3: все ошибки статов — одним списком
 TEST(Swordsman_reports_all_invalid_stats_at_once)
 {
 	const SpawnRequest request = makeSwordsman({UnitId{4}, {1, 1}, 0, 0});
@@ -81,7 +80,7 @@ TEST(Hunter_is_assembled_from_its_spec)
 	SpawnRequest request = makeHunter({UnitId{2}, {9, 0}, 10, 5, 1, 4});
 	CHECK(request.unit.ok());
 
-	Unit hunter = std::move(request.unit).value();	// behaviour() — только у изменяемого юнита
+	Unit hunter = std::move(request.unit).value();
 	CHECK_EQ(hunter.type(), std::string_view("Hunter"));
 	CHECK_EQ(hunter.get<Agility>().value, int64_t{5});
 	CHECK_EQ(hunter.get<Strength>().value, int64_t{1});
@@ -104,35 +103,32 @@ TEST(Hunter_reports_all_invalid_stats_and_range_at_once)
 	CHECK(makeHunter({UnitId{2}, {0, 0}, 10, 5, 1, 2}).unit.ok());
 }
 
-// Приёмка п. 9.3: Охотник с соседом бьёт Strength
 TEST(Hunter_with_a_neighbour_strikes_from_the_shadow)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = place(arena, makeHunter({UnitId{1}, {5, 5}, 10, 5, 1, 4}));
-	arena.dummy(2, {6, 5});	 // сосед
-	arena.dummy(3, {8, 5});	 // на дистанции выстрела, но выстрелить нельзя
+	arena.dummy(2, {6, 5});
+	arena.dummy(3, {8, 5});
 
 	CHECK(act(hunter, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->2 damage=1 hp=9"}));
 }
 
-// Приёмка п. 9.3: без соседей и с целью на дистанции 2..range стреляет Agility
 TEST(Hunter_without_neighbours_shoots_with_agility)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = place(arena, makeHunter({UnitId{1}, {5, 5}, 10, 5, 1, 4}));
-	arena.dummy(2, {9, 9});	 // дистанция 4
+	arena.dummy(2, {9, 9});
 
 	CHECK(act(hunter, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->2 damage=5 hp=5"}));
 }
 
-// Приёмка п. 9.3: цель на дистанции 1 и сосед-летающий не мешают выстрелу
 TEST(Hunter_shoots_past_a_flying_neighbour)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = place(arena, makeHunter({UnitId{1}, {5, 5}, 10, 5, 1, 4}));
-	arena.dummy(2, {5, 6}, /*occupiesCell*/ false);	 // «Ворон» рядом
+	arena.dummy(2, {5, 6}, /*occupiesCell*/ false);
 	arena.dummy(3, {5, 8});
 
 	CHECK(act(hunter, arena.context()));
@@ -143,7 +139,7 @@ TEST(Hunter_without_targets_follows_its_march)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = place(arena, makeHunter({UnitId{1}, {5, 5}, 10, 5, 1, 2}));
-	arena.dummy(2, {9, 9});	 // дистанция 4 > range 2
+	arena.dummy(2, {9, 9});
 	arena.march(hunter, {0, 5});
 
 	CHECK(act(hunter, arena.context()));
@@ -151,7 +147,6 @@ TEST(Hunter_without_targets_follows_its_march)
 	CHECK_EQ(hunter.position(), (Position{4, 5}));
 }
 
-// Приёмка п. 9.3: Мечник без соседей и без марша бездействует
 TEST(Swordsman_without_neighbours_and_march_stays_idle)
 {
 	FeatureArena arena(10, 10);
@@ -173,5 +168,5 @@ TEST(Swordsman_strikes_a_neighbour_instead_of_marching)
 	CHECK(act(swordsman, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->2 damage=2 hp=8"}));
 	CHECK_EQ(swordsman.position(), (Position{5, 5}));
-	CHECK_EQ(swordsman.get<sw::core::Movement>().marches.size(), size_t{1});  // марш не отменён
+	CHECK_EQ(swordsman.get<sw::core::Movement>().marches.size(), size_t{1});
 }

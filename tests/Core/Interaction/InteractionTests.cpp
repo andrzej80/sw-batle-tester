@@ -36,7 +36,6 @@ TEST(Interaction_damage_reduces_hp_and_publishes_attack)
 	CHECK(arena.log == (std::vector<std::string>{"attacked 2->1 damage=4 hp=6"}));
 }
 
-// Как на тике 4 лога из исходного main.cpp: UNIT_ATTACKED с targetHp=0, сразу UNIT_DIED
 TEST(Interaction_lethal_damage_publishes_death_right_after_attack)
 {
 	Arena arena;
@@ -58,7 +57,7 @@ TEST(Interaction_dead_target_cannot_be_hit_again)
 	arena.interaction.apply(damage(2, 1, 5));
 
 	CHECK_THROWS(arena.interaction.apply(damage(2, 1, 5)), std::logic_error);
-	CHECK_EQ(arena.log.size(), size_t{2});	// второго UNIT_DIED нет
+	CHECK_EQ(arena.log.size(), size_t{2});
 }
 
 TEST(Interaction_heal_is_capped_by_max_hp)
@@ -74,7 +73,6 @@ TEST(Interaction_heal_is_capped_by_max_hp)
 	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=5 hp=10"}));
 }
 
-// Лечение под запретом лечения — выполненное действие с суммой 0 (решение по правилам)
 TEST(Interaction_heal_ban_turns_heal_into_zero_but_still_publishes_it)
 {
 	Arena arena;
@@ -89,7 +87,7 @@ TEST(Interaction_heal_ban_turns_heal_into_zero_but_still_publishes_it)
 	target.get<Health>().current = 4;
 
 	arena.interaction.apply(healing(2, 1, 3));
-	arena.interaction.apply(damage(2, 1, 1));  // запрет лечения урон не трогает
+	arena.interaction.apply(damage(2, 1, 1));
 
 	CHECK_EQ(target.get<Health>().current, int64_t{3});
 	CHECK(arena.log == (std::vector<std::string>{"healed 2->1 amount=0 hp=4", "attacked 2->1 damage=1 hp=3"}));
@@ -106,7 +104,7 @@ TEST(Interaction_modifiers_run_by_priority_then_by_order_of_addition)
 		 .components = [&](ComponentStore& components)
 		 {
 			 components.add<LoggingModifier<1>>(calls, "late", 2);
-			 components.add<ShieldStatus>();  // приоритет 0 — первым
+			 components.add<ShieldStatus>();
 		 }});
 
 	arena.interaction.apply(damage(2, 1, 3));
@@ -126,7 +124,7 @@ TEST(Interaction_modifiers_with_equal_priority_keep_order_of_addition)
 		 {
 			 components.add<LoggingModifier<1>>(calls, "priority-2", 2);
 			 components.add<LoggingModifier<2>>(calls, "priority-1-added-first", 1);
-			 components.add<StackingPoison>(sw::core::Tick{100});  // не модификатор
+			 components.add<StackingPoison>(sw::core::Tick{100});
 			 components.add<LoggingModifier<3>>(calls, "priority-1-added-second", 1);
 		 }});
 
@@ -146,8 +144,8 @@ TEST(Interaction_shield_keeps_its_state_between_hits)
 			 components.add<Shield>(3);
 		 }});
 
-	arena.interaction.apply(damage(2, 1, 2));  // щит 3 → 1, урон 0
-	arena.interaction.apply(damage(2, 1, 2));  // щит 1 → 0, урон 1
+	arena.interaction.apply(damage(2, 1, 2));
+	arena.interaction.apply(damage(2, 1, 2));
 
 	CHECK_EQ(target.get<Health>().current, int64_t{9});
 	CHECK(arena.log == (std::vector<std::string>{"attacked 2->1 damage=0 hp=10", "attacked 2->1 damage=1 hp=9"}));
@@ -167,12 +165,12 @@ TEST(Interaction_rejects_contract_violations)
 			 components.add<NegativeModifier>();
 		 }});
 
-	CHECK_THROWS(arena.interaction.apply(damage(2, 1, -1)), std::logic_error);	// отрицательная величина
-	CHECK_THROWS(arena.interaction.apply(damage(2, 3, 1)), std::logic_error);	// у цели нет Health
-	CHECK_THROWS(arena.interaction.apply(damage(2, 99, 1)), std::logic_error);	// нет такой цели
-	CHECK_THROWS(arena.interaction.apply(damage(2, 4, 1)), std::logic_error);	// модификатор дал < 0
+	CHECK_THROWS(arena.interaction.apply(damage(2, 1, -1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(2, 3, 1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(2, 99, 1)), std::logic_error);
+	CHECK_THROWS(arena.interaction.apply(damage(2, 4, 1)), std::logic_error);
 	const Hit status{debuff({1, 1}), UnitId{2}, UnitId{1}, 1};
-	CHECK_THROWS(arena.interaction.apply(status), std::logic_error);  // статусы — через applyStatus
+	CHECK_THROWS(arena.interaction.apply(status), std::logic_error);
 	CHECK(arena.log.empty());
 }
 
@@ -226,7 +224,6 @@ TEST(Interaction_status_respects_target_rules)
 		std::logic_error);
 }
 
-// Повторное наложение решает сам статус: по умолчанию — замена
 TEST(Interaction_reapplied_status_replaces_the_old_one_by_default)
 {
 	Arena arena;

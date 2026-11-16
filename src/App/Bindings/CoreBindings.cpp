@@ -1,7 +1,3 @@
-// Команды механик Core: CREATE_MAP и MARCH → SetupContext (SPECIFICATION.md, п. 10.5).
-// Адаптеры без логики: только перевод полей uint32_t формата в типы домена (расширение
-// без потерь).
-
 #include <App/Registration/Registrar.hpp>
 #include <App/Scenario/CommandRegistry.hpp>
 #include <Core/Setup/SetupContext.hpp>

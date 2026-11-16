@@ -75,7 +75,7 @@ namespace sw::core
 
 	void Simulation::runMainPhase()
 	{
-		// Снимок порядка: юниты, созданные во время тика, действуют со следующего
+		// Снимок: юниты, созданные во время тика, ходят со следующего
 		for (const UnitId id : _world.units().orderedIds())
 		{
 			Unit* unit = _world.units().find(id);

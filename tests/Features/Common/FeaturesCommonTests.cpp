@@ -23,7 +23,6 @@ namespace
 {
 	using Lines = std::vector<std::string>;
 
-	// Стрелок с характеристиками Agility и Range и выстрелом distance(2, stat<Range>)
 	UnitBuilder shooter(uint32_t id, Position position, int64_t range)
 	{
 		UnitBuilder builder(UnitId{id}, "Shooter", position);
@@ -50,8 +49,6 @@ TEST(TargetSpecs_name_the_four_kinds_of_effects)
 	CHECK(tags::Melee == sw::core::Tag("melee"));
 }
 
-// Приёмка п. 9.3: один и тот же distance(2, stat<Range>) на юнитах с разным Range даёт
-// разные дистанции — значение читается в момент выполнения, а не при сборке
 TEST(Distance_reads_stats_at_the_moment_of_use)
 {
 	const Distance shot = distance(2, stat<Range>);
@@ -65,7 +62,7 @@ TEST(Distance_reads_stats_at_the_moment_of_use)
 	CHECK_EQ(shot.resolve(nearUnit), (DistanceRange{2, 3}));
 	CHECK_EQ(shot.resolve(farUnit), (DistanceRange{2, 7}));
 
-	nearUnit.get<Range>().value = 1;  // как будто дебафф дальности
+	nearUnit.get<Range>().value = 1;
 	CHECK(shot.resolve(nearUnit).empty());
 	CHECK_EQ(distance(2, 5).resolve(farUnit), (DistanceRange{2, 5}));
 }
@@ -144,8 +141,8 @@ TEST(MeleeAttack_hits_an_adjacent_unit_with_the_stat_value)
 	UnitBuilder builder(UnitId{1}, "Swordsman", {5, 5});
 	builder.with<sw::core::Health>(10).with<Strength>(3).action<MeleeAttack>(stat<Strength>);
 	Unit& swordsman = arena.place(builder);
-	arena.dummy(2, {7, 5});	 // дистанция 2 — не сосед
-	arena.dummy(3, {6, 6});	 // сосед
+	arena.dummy(2, {7, 5});
+	arena.dummy(3, {6, 6});
 
 	CHECK(act(swordsman, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->3 damage=3 hp=7"}));
@@ -182,8 +179,8 @@ TEST(RangedAttack_shoots_within_the_stat_range)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = arena.place(shooter(1, {0, 0}, 4).with<Strength>(1));
-	arena.dummy(2, {5, 0});	 // дистанция 5 — дальше Range
-	arena.dummy(3, {4, 4});	 // дистанция 4
+	arena.dummy(2, {5, 0});
+	arena.dummy(3, {4, 4});
 
 	CHECK(act(hunter, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->3 damage=5 hp=5"}));
@@ -194,20 +191,19 @@ TEST(RangedAttack_does_not_shoot_with_an_occupying_neighbour)
 	FeatureArena arena(10, 10);
 	Unit& hunter = arena.place(shooter(1, {0, 0}, 4));
 	arena.dummy(2, {3, 0});
-	arena.dummy(3, {1, 1});	 // сосед, занимающий клетку
+	arena.dummy(3, {1, 1});
 
 	CHECK(!act(hunter, arena.context()));
 	CHECK(arena.attacks.empty());
 }
 
-// Решение по правилам: выстрелу мешают только живые юниты, занимающие клетки
 TEST(RangedAttack_is_not_blocked_by_flying_or_dead_neighbours)
 {
 	FeatureArena arena(10, 10);
 	Unit& hunter = arena.place(shooter(1, {0, 0}, 4));
-	arena.dummy(2, {1, 0}, /*occupiesCell*/ false);	 // «летающий» сосед
+	arena.dummy(2, {1, 0}, /*occupiesCell*/ false);
 	Unit& corpse = arena.dummy(3, {0, 1});
-	kill(corpse);  // мёртвый до уборки
+	kill(corpse);
 	arena.dummy(4, {3, 3});
 
 	CHECK(act(hunter, arena.context()));
@@ -220,10 +216,10 @@ TEST(RangedAttack_ignores_targets_closer_than_the_minimum)
 	UnitBuilder builder(UnitId{1}, "Tower", {5, 5});
 	builder.with<sw::core::Health>(10).with<Power>(7).action<RangedAttack>(stat<Power>, distance(2, 5));
 	Unit& tower = arena.place(builder);
-	arena.dummy(2, {5, 6}, /*occupiesCell*/ false);	 // дистанция 1: не цель выстрела
+	arena.dummy(2, {5, 6}, /*occupiesCell*/ false);
 
 	CHECK(!act(tower, arena.context()));
-	arena.dummy(3, {5, 8});	 // дистанция 3
+	arena.dummy(3, {5, 8});
 	CHECK(act(tower, arena.context()));
 	CHECK(arena.attacks == (Lines{"1->3 damage=7 hp=3"}));
 }

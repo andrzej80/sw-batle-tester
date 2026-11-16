@@ -12,17 +12,6 @@
 
 namespace sw::app
 {
-	// Единственное место, где доменные события встречаются с форматом вывода
-	// (ARCHITECTURE.md, п. 4.11). Адаптеры событий регистрируются сами (SW_REGISTER_OUTPUT):
-	//
-	//   void outputUnitHealed(EventBridge& bridge)
-	//   {
-	//       bridge.on<core::events::UnitHealed>([](const auto& e, EventLog& log, core::Tick tick)
-	//                                           { log.log(tick, io::UnitHealed{...}); });
-	//   }
-	//   SW_REGISTER_OUTPUT(outputUnitHealed)
-	//
-	// Номер тика берётся у мира в момент события через clock.
 	class EventBridge
 	{
 	public:
@@ -36,7 +25,6 @@ namespace sw::app
 		EventBridge(EventBridge&&) = delete;
 		EventBridge& operator=(EventBridge&&) = delete;
 
-		// Второй адаптер для того же типа события или пустой адаптер — std::logic_error
 		template <class E>
 		EventBridge& on(Output<E> output)
 		{

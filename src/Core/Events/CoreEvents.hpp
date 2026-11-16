@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <string>
 
-// События механик Core (SPECIFICATION.md, п. 2). Это доменные события: формат вывода
-// они не знают, в io::Events их переводят адаптеры App/Output. Числа — int64_t (п. 1.4).
 namespace sw::core::events
 {
 	struct MapCreated
@@ -19,7 +17,7 @@ namespace sw::core::events
 	struct UnitSpawned
 	{
 		UnitId unitId;
-		std::string unitType;  // "Swordsman"
+		std::string unitType;
 		Position position;
 
 		friend bool operator==(const UnitSpawned&, const UnitSpawned&) = default;
@@ -28,7 +26,7 @@ namespace sw::core::events
 	struct UnitMoved
 	{
 		UnitId unitId;
-		Position position;	// клетка после шага
+		Position position;
 
 		friend bool operator==(const UnitMoved&, const UnitMoved&) = default;
 	};
@@ -54,8 +52,8 @@ namespace sw::core::events
 	{
 		UnitId attackerId;
 		UnitId targetId;
-		int64_t damage{};	 // итоговый урон после модификаторов цели
-		int64_t targetHp{};	 // HP цели после удара, не меньше 0
+		int64_t damage{};
+		int64_t targetHp{};
 
 		friend bool operator==(const UnitAttacked&, const UnitAttacked&) = default;
 	};
@@ -64,8 +62,8 @@ namespace sw::core::events
 	{
 		UnitId healerId;
 		UnitId targetId;
-		int64_t amount{};  // итоговое лечение после модификаторов цели, может быть 0
-		int64_t targetHp{};	 // HP цели после лечения
+		int64_t amount{};
+		int64_t targetHp{};
 
 		friend bool operator==(const UnitHealed&, const UnitHealed&) = default;
 	};

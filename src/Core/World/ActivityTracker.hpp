@@ -4,13 +4,6 @@
 
 namespace sw::core
 {
-	// Учёт активности за тик для правила «пустого тика» (ARCHITECTURE.md, п. 4.6).
-	// Считает только Core: фичи ничего не сообщают сами.
-	//
-	// - markAction / markScheduled / markRemoval — выполненное действие, выполненный
-	//   отложенный эффект, удаление в Cleanup; по ним решается, был ли тик пустым;
-	// - markChange — вызывают изменяющие методы фасадов TurnContext; счётчик changes()
-	//   не сбрасывается и служит проверке контракта IAction (false — мир не менялся).
 	class ActivityTracker
 	{
 	public:

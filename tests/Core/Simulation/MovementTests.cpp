@@ -20,7 +20,7 @@ namespace
 	{
 		int64_t moveCost(const Unit&, int64_t cost) const override
 		{
-			return cost + 2;  // вход стоит 3
+			return cost + 2;
 		}
 	};
 
@@ -63,10 +63,10 @@ TEST(MovementService_refuses_illegal_steps_without_changes)
 	kill(corpse);
 	const uint64_t changes = arena.world.activity().changes();
 
-	CHECK(!arena.context().movement().stepTo(unit, {2, 2}, arena.context()));	// не соседняя
-	CHECK(!arena.context().movement().stepTo(unit, {-1, 0}, arena.context()));	// вне карты
-	CHECK(!arena.context().movement().stepTo(unit, {1, 0}, arena.context()));	// занята мёртвым
-	CHECK(!arena.context().movement().stepTo(tower, {5, 6}, arena.context()));	// статичен всегда
+	CHECK(!arena.context().movement().stepTo(unit, {2, 2}, arena.context()));
+	CHECK(!arena.context().movement().stepTo(unit, {-1, 0}, arena.context()));
+	CHECK(!arena.context().movement().stepTo(unit, {1, 0}, arena.context()));
+	CHECK(!arena.context().movement().stepTo(tower, {5, 6}, arena.context()));
 
 	CHECK_EQ(unit.position(), (Position{0, 0}));
 	CHECK_EQ(tower.position(), (Position{5, 5}));
@@ -110,7 +110,7 @@ TEST(MarchStep_walks_straight_and_ends_march_on_arrival)
 {
 	SimArena arena(10, 10);
 	const Unit& unit = arena.spawn({.id = 1, .position = {0, 0}});
-	arena.spawn({.id = 2, .position = {9, 9}, .speed = std::nullopt});	// второй юнит: иначе стоп сразу
+	arena.spawn({.id = 2, .position = {9, 9}, .speed = std::nullopt});
 	arena.march(unit, {3, 0});
 
 	CHECK(arena.simulation.runTick() == std::nullopt);
@@ -132,11 +132,11 @@ TEST(MarchStep_goes_around_an_occupied_cell)
 {
 	SimArena arena(10, 10);
 	const Unit& unit = arena.spawn({.id = 1, .position = {0, 0}});
-	arena.spawn({.id = 2, .position = {1, 0}, .speed = std::nullopt});	// стоит на прямом пути
+	arena.spawn({.id = 2, .position = {1, 0}, .speed = std::nullopt});
 	arena.march(unit, {2, 0});
 
 	CHECK(arena.simulation.runTick() == std::nullopt);
-	CHECK_EQ(unit.position(), (Position{1, 1}));  // единственная клетка, приближающая к цели
+	CHECK_EQ(unit.position(), (Position{1, 1}));
 }
 
 TEST(MarchStep_waits_when_no_cell_gets_closer)
@@ -153,7 +153,7 @@ TEST(MarchStep_waits_when_no_cell_gets_closer)
 
 	CHECK_EQ(unit.position(), (Position{0, 0}));
 	CHECK_EQ(arena.world.activity().changes(), changes);
-	CHECK_EQ(unit.get<sw::core::Movement>().marches.size(), size_t{1});	 // марш не отменён
+	CHECK_EQ(unit.get<sw::core::Movement>().marches.size(), size_t{1});
 }
 
 TEST(MarchStep_speed_two_moves_two_cells_per_tick)
@@ -178,9 +178,7 @@ TEST(MarchStep_first_step_is_always_allowed_but_expensive_cell_stops_the_rest)
 	arena.march(fast, {6, 1});
 
 	CHECK(arena.simulation.runTick() == std::nullopt);
-	// slow: болото стоит 3 при скорости 1, но первый шаг разрешён
 	CHECK_EQ(slow.position(), (Position{1, 0}));
-	// fast: прямой шаг (4,1) стоит 1, следующий прямой (5,1) — обычный: оба шага
 	CHECK_EQ(fast.position(), (Position{5, 1}));
 }
 
@@ -193,9 +191,9 @@ TEST(MarchStep_second_step_into_expensive_cell_waits_for_next_tick)
 	arena.march(unit, {3, 0});
 
 	CHECK(arena.simulation.runTick() == std::nullopt);
-	CHECK_EQ(unit.position(), (Position{1, 0}));  // (2,0) стоит 3 > оставшегося бюджета 1
+	CHECK_EQ(unit.position(), (Position{1, 0}));
 	CHECK(arena.simulation.runTick() == std::nullopt);
-	CHECK_EQ(unit.position(), (Position{2, 0}));  // первый шаг разрешён, но съел весь бюджет
+	CHECK_EQ(unit.position(), (Position{2, 0}));
 	CHECK(arena.simulation.runTick() == std::nullopt);
 	CHECK_EQ(unit.position(), (Position{3, 0}));
 }

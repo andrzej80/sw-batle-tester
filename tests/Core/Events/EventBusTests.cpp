@@ -12,14 +12,12 @@ namespace events = sw::core::events;
 
 namespace
 {
-	// Событие «фичи»: шина принимает любой тип, Core о нём не знает
 	struct FeatureEvent
 	{
 		int value{};
 	};
 }
 
-// Приёмка SPECIFICATION.md, п. 2
 TEST(EventBus_calls_subscribers_in_subscription_order)
 {
 	EventBus bus;
@@ -124,7 +122,6 @@ TEST(EventBus_subscribing_during_publish_is_a_logic_error)
 	bus.publish(events::UnitDied{UnitId{1}});
 	CHECK(rejected);
 
-	// После публикации подписка снова разрешена
 	bus.subscribe<events::UnitDied>([](const events::UnitDied&) {});
 }
 

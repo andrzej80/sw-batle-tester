@@ -1,19 +1,5 @@
 #pragma once
 
-// Минимальный фреймворк тестов без внешних зависимостей (SPECIFICATION.md, п. 11).
-//
-//   TEST(Range_contains_bounds)
-//   {
-//       CHECK(range.contains(2));
-//       CHECK_EQ(chebyshev(a, b), 4);
-//       CHECK_THROWS(Map(0, 1), std::logic_error);
-//   }
-//
-// Проваленная проверка не прерывает тест: отчёт содержит все провалы сразу.
-//
-// Аргументы — макросы: запятая внутри {} делит аргументы, поэтому такие выражения
-// берутся в скобки: CHECK_EQ(range.shifted(-1, -1), (DistanceRange{1, 3})).
-
 #include <functional>
 #include <ostream>
 #include <sstream>
@@ -38,7 +24,6 @@ namespace sw::test
 		SourceLocation location;
 	};
 
-	// Все зарегистрированные тесты в порядке регистрации
 	std::vector<TestCase>& registry();
 
 	struct TestRegistrar
@@ -46,16 +31,10 @@ namespace sw::test
 		TestRegistrar(const char* name, TestFunction function, SourceLocation location);
 	};
 
-	// Сообщает о проваленной проверке текущему тесту; тест продолжается.
-	// Вызов вне выполняющегося теста — std::logic_error.
 	void reportFailure(SourceLocation location, const std::string& message);
 
-	// Выполняет body как отдельный тест и возвращает число провалов.
-	// Исключение, вылетевшее из body, считается провалом.
 	size_t runIsolated(const std::function<void()>& body, std::ostream& output);
 
-	// Выполняет тесты, имя которых содержит filter (пустой — все).
-	// Возвращает код выхода: 0 — все прошли, 1 — есть провалы или ни один тест не подошёл.
 	int runAll(std::string_view filter, std::ostream& output);
 
 	namespace detail
@@ -85,6 +64,8 @@ namespace sw::test
 	static const ::sw::test::TestRegistrar SW_TEST_CONCAT(name, _registrar){#name, &name, {__FILE__, __LINE__}};       \
 	static void name()
 
+// Запятая внутри {} делит аргументы макроса, такие выражения берутся в скобки:
+// CHECK_EQ(range.shifted(-1, -1), (DistanceRange{1, 3})).
 #define CHECK(expression)                                                                                              \
 	do                                                                                                                 \
 	{                                                                                                                  \

@@ -11,7 +11,6 @@
 
 namespace sw::test
 {
-	// Мир с симуляцией (SimArena) и журналом ударов
 	struct FeatureArena : SimArena
 	{
 		FeatureArena(int64_t width, int64_t height) :
@@ -36,7 +35,6 @@ namespace sw::test
 			return place(builder);
 		}
 
-		// Неподвижная мишень с HP
 		core::Unit& dummy(uint32_t id, core::Position position, bool occupiesCell = true, int64_t hp = 10)
 		{
 			features::UnitBuilder builder(core::UnitId{id}, "Dummy", position);

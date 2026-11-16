@@ -13,7 +13,6 @@
 
 namespace sw::test
 {
-	// Временный файл сценария; удаляется в деструкторе
 	class TempScenario
 	{
 	public:
@@ -42,7 +41,6 @@ namespace sw::test
 		std::filesystem::path _path;
 	};
 
-	// EventLog пишет в std::cout: на время теста подменяем буфер
 	class CoutCapture
 	{
 	public:
@@ -71,12 +69,10 @@ namespace sw::test
 	struct AppRun
 	{
 		int code;
-		std::string out;  // stdout — события
-		std::string err;  // stderr — сообщения приложения
+		std::string out;
+		std::string err;
 	};
 
-	// Запуск приложения на тексте сценария, как из командной строки. По умолчанию —
-	// настоящие адаптеры и детерминированная случайность (FirstRandom).
 	inline AppRun runApplication(
 		const std::string& name, const std::string& scenario, app::ApplicationOptions options = {})
 	{
@@ -92,7 +88,6 @@ namespace sw::test
 		const CoutCapture capture;
 		const int code = app::Application(std::move(options)).run(2, argv, errors);
 
-		// Путь к временному файлу в сообщениях заменяется на "scenario.txt": тексты сравнимы
 		std::string err = errors.str();
 		for (size_t at = err.find(path); at != std::string::npos; at = err.find(path, at))
 		{

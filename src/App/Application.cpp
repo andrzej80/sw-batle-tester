@@ -56,7 +56,6 @@ namespace sw::app
 		}
 		const LoadedScenario scenario = loadScenario(file, registry);
 
-		// Проход 1: полный список ошибок, в stdout — ничего
 		std::vector<ScenarioError> problems = validateScenario(scenario);
 		if (!problems.empty())
 		{
@@ -64,7 +63,6 @@ namespace sw::app
 			return exit_code::InvalidScenario;
 		}
 
-		// Проход 2: события в stdout
 		const std::unique_ptr<core::IRandom> random = _options.random();
 		const core::StopReason reason = runScenario(scenario, _options.outputs, *random, _options.tickLimit);
 		if (reason == core::StopReason::TickLimit)

@@ -9,9 +9,6 @@
 
 namespace sw::core
 {
-	// Компоненты, которые действие читает у своего юнита (IAction::requirements).
-	// Проверяются при создании юнита, чтобы ошибка сборки была видна сразу, а не на
-	// каком-нибудь 500-м тике (ARCHITECTURE.md, п. 4.3).
 	class ComponentRequirements
 	{
 	public:
@@ -23,7 +20,6 @@ namespace sw::core
 
 		void require(std::type_index type, std::string name);
 
-		// Имена компонентов, которых нет в components, в порядке объявления
 		std::vector<std::string> missingIn(const ComponentStore& components) const;
 
 	private:

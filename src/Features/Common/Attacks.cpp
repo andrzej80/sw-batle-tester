@@ -15,7 +15,6 @@ namespace sw::features
 {
 	namespace
 	{
-		// Удар по случайной цели из подходящих; целей нет — false
 		bool hitRandomTarget(
 			const core::Unit& self, core::TurnContext& context, const core::TargetSpec& spec, int64_t damage)
 		{

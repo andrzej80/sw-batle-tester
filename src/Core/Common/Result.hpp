@@ -20,8 +20,6 @@ namespace sw::core
 		}
 	}
 
-	// Значение T или непустой список ошибок ввода (SPECIFICATION.md, п. 1.2).
-	// Ошибки ввода — это Result, а не исключения; исключение означает баг (п. 6.4 архитектуры).
 	template <class T>
 	class [[nodiscard]] Result
 	{
@@ -61,16 +59,13 @@ namespace sw::core
 			return std::get<0>(std::move(_state));
 		}
 
-		// У успешного результата — пустой список: это правдивый ответ «ошибок нет»,
-		// поэтому сбор ошибок может всегда писать all.append(result.errors()).
 		const Diagnostics& errors() const&
 		{
 			static const Diagnostics noErrors;
 			return ok() ? noErrors : std::get<1>(_state);
 		}
 
-		// У временного результата — список по значению, а не ссылка в уничтоженный объект:
-		// иначе for (const auto& e : make().errors()) обходил бы висячую ссылку
+		// По значению: иначе for (const auto& e : make().errors()) обходил бы висячую ссылку
 		Diagnostics errors() &&
 		{
 			return ok() ? Diagnostics{} : std::get<1>(std::move(_state));
@@ -88,7 +83,6 @@ namespace sw::core
 		std::variant<T, Diagnostics> _state;
 	};
 
-	// Успех без значения или непустой список ошибок. Успех — Result<void>{}.
 	template <>
 	class [[nodiscard]] Result<void>
 	{
@@ -108,13 +102,11 @@ namespace sw::core
 			return _errors.empty();
 		}
 
-		// У успешного результата — пустой список (как у Result<T>)
 		const Diagnostics& errors() const&
 		{
 			return _errors;
 		}
 
-		// У временного результата — по значению (см. Result<T>::errors() &&)
 		Diagnostics errors() &&
 		{
 			return std::move(_errors);

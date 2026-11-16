@@ -21,7 +21,6 @@ using namespace sw::test;
 
 namespace
 {
-	// Реестр со всеми саморегистрированными адаптерами, как в приложении
 	CommandRegistry realRegistry()
 	{
 		CommandRegistry registry;
@@ -48,7 +47,6 @@ namespace
 		  "MARCH 3 0 0\n";
 }
 
-// Адаптеры находятся реестром без общего списка: достаточно, что их файлы собраны в App
 TEST(Bindings_register_all_scenario_commands)
 {
 	const LoadedScenario scenario = load(example);

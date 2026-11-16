@@ -15,8 +15,8 @@ namespace sw::test
 		uint32_t id;
 		core::Position position;
 		bool occupiesCell = true;
-		std::optional<int64_t> hp = 10;	 // nullopt — юнит без Health, как мина
-		std::function<void(core::ComponentStore&)> components = {};	 // дополнительные компоненты
+		std::optional<int64_t> hp = 10;
+		std::function<void(core::ComponentStore&)> components = {};
 	};
 
 	inline core::Unit makeUnit(const TestUnit& description)

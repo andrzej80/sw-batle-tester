@@ -1,6 +1,3 @@
-// Сценарные тесты по эталонам из tests/scenarios (см. README.md там же): приложение
-// целиком, случайность — заглушка FirstRandom (SPECIFICATION.md, п. 11).
-
 #include "App/AppTestHelpers.hpp"
 #include "TestFramework/TestFramework.hpp"
 

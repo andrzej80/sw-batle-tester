@@ -1,8 +1,5 @@
 #pragma once
 
-// Компоненты и действия для тестов Core/Units: Core не знает конкретных статов и
-// правил, поэтому тесты объявляют свои — так же, как это делают фичи.
-
 #include <Core/Actions/IAction.hpp>
 #include <Core/Interaction/IHitModifier.hpp>
 #include <Core/Interaction/ITargetRule.hpp>
@@ -24,7 +21,6 @@ namespace sw::test
 		int64_t value;
 	};
 
-	// Правило цели (как Flying у Ворона)
 	struct RuleComponent final : core::IComponent, core::ITargetRule
 	{
 		std::optional<core::DistanceRange> adjust(const core::TargetSpec&, core::DistanceRange range) const override
@@ -33,7 +29,6 @@ namespace sw::test
 		}
 	};
 
-	// Модификатор удара (как щит)
 	struct ModifierComponent final : core::IComponent, core::IHitModifier
 	{
 		int priority() const override
@@ -44,7 +39,6 @@ namespace sw::test
 		void modify(core::Hit&) override {}
 	};
 
-	// И правило, и модификатор
 	struct RuleAndModifierComponent final : core::IComponent, core::ITargetRule, core::IHitModifier
 	{
 		std::optional<core::DistanceRange> adjust(const core::TargetSpec&, core::DistanceRange range) const override
@@ -60,7 +54,6 @@ namespace sw::test
 		void modify(core::Hit&) override {}
 	};
 
-	// Действие, которому нужны компоненты Required...
 	template <class... Required>
 	class RequiringAction final : public core::IAction
 	{
@@ -76,7 +69,6 @@ namespace sw::test
 		}
 	};
 
-	// Текст std::logic_error, брошенного body; пусто — исключения не было
 	inline std::string logicErrorMessage(const std::function<void()>& body)
 	{
 		try

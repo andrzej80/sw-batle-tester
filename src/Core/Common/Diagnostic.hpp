@@ -11,22 +11,19 @@
 
 namespace sw::core
 {
-	// Ошибка во входных данных. Без привязки к файлу: Core и Features не знают про
-	// сценарий, файл, строку и имя команды добавляет App (SPECIFICATION.md, п. 1.2).
 	struct Diagnostic
 	{
 		Diagnostic(std::string code, std::string message, std::optional<UnitId> relatedUnit = std::nullopt);
 
-		std::string code;					// "unit.duplicate_id": пространство имён + суть
-		std::string message;				// "unit id 1 already exists"
-		std::optional<UnitId> relatedUnit;	// App добавит строку спавна этого юнита
+		std::string code;
+		std::string message;
+		std::optional<UnitId> relatedUnit;
 
 		friend bool operator==(const Diagnostic&, const Diagnostic&) = default;
 	};
 
 	std::ostream& operator<<(std::ostream& stream, const Diagnostic& diagnostic);
 
-	// Список ошибок. Проверки собирают все найденные ошибки, а не останавливаются на первой.
 	class Diagnostics
 	{
 	public:

@@ -1,5 +1,3 @@
-// SPAWN_SWORDSMAN → фабрика Мечника. Единственное место, где встречаются IO и фича.
-
 #include <App/Registration/Registrar.hpp>
 #include <App/Scenario/CommandRegistry.hpp>
 #include <Core/Setup/SetupContext.hpp>

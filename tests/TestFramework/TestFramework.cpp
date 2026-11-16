@@ -16,7 +16,6 @@ namespace sw::test
 			std::ostream* output{};
 		};
 
-		// Контекст выполняющегося теста; runIsolated может вкладываться (тесты самого фреймворка)
 		RunContext*& currentContext()
 		{
 			static RunContext* context = nullptr;

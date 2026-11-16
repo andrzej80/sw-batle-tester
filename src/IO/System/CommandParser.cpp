@@ -20,7 +20,7 @@ namespace sw::io
 			line >> name;
 			if (name.empty())
 			{
-				continue;  // строка из одних пробелов
+				continue;
 			}
 
 			const auto command = _commands.find(name);

@@ -17,7 +17,6 @@ using sw::io::parseUInt32;
 
 namespace
 {
-	// Команда со строковым полем: формат допускает и такие поля
 	struct Say
 	{
 		constexpr static const char* Name = "SAY";
@@ -126,7 +125,6 @@ TEST(CommandParser_reads_string_fields)
 	CHECK(parsed.commands == (std::vector<std::string>{"1: SAY hello x3"}));
 }
 
-// Приёмка SPECIFICATION.md, п. 8
 TEST(CommandParser_reports_unknown_command)
 {
 	const Parsed parsed = parse("SPAWN_DRAGON 1 0 0\n");
@@ -197,7 +195,6 @@ TEST(CommandParser_rejects_duplicate_and_empty_handlers)
 	CHECK_THROWS(parser.add<Say>(std::function<void(Say, size_t)>{}), std::logic_error);
 }
 
-// Таблица приёмки п. 8.1
 TEST(ParseUInt32_accepts_only_plain_decimal_digits)
 {
 	CHECK_EQ(uintResult("-5"), std::string("error: expected non-negative integer, got \"-5\""));

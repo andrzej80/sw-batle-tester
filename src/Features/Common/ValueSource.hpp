@@ -7,17 +7,8 @@
 #include <functional>
 #include <utility>
 
-// Откуда действие берёт число: константа или характеристика юнита (SPECIFICATION.md,
-// п. 9.1). Значение читается в момент выполнения действия, а не при сборке: эффект,
-// меняющий характеристику (бафф дальности, проклятие силы), сразу влияет на действие.
-//
-//   MeleeAttack(stat<Strength>)
-//   RangedAttack(stat<Agility>, distance(2, stat<Range>))
-//   RangedAttack(stat<Power>, distance(2, 5))
 namespace sw::features
 {
-	// Характеристика T юнита. stat<T> — единственная точка чтения характеристик: будущие
-	// модификаторы характеристик добавляются здесь, без правок Core и действий.
 	template <class T>
 	struct Stat
 	{
@@ -30,8 +21,6 @@ namespace sw::features
 	template <class T>
 	inline constexpr Stat<T> stat{};
 
-	// Число для действия: константа или характеристика. Объявляет требования к компонентам,
-	// чтобы юнит без нужной характеристики не собрался.
 	class ValueSource
 	{
 	public:
@@ -67,8 +56,6 @@ namespace sw::features
 		std::function<void(core::ComponentRequirements&)> _declare;
 	};
 
-	// Дистанция действия; каждая граница — число или характеристика. min > max (например,
-	// дальность опустили ниже 2) — пустой диапазон: целей нет.
 	class Distance
 	{
 	public:

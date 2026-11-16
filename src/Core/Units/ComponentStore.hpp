@@ -18,10 +18,6 @@ namespace sw::core
 	class ITargetRule;
 	class IHitModifier;
 
-	// Компоненты юнита по типу, по одному каждого типа (SPECIFICATION.md, п. 3.1).
-	// Компонент, реализующий ITargetRule / IHitModifier, при добавлении попадает в индекс
-	// хуков, при удалении — убирается из него. Порядок хуков — порядок добавления: от него
-	// зависит порядок применения правил цели (ARCHITECTURE.md, п. 4.13).
 	class ComponentStore
 	{
 	public:
@@ -35,15 +31,10 @@ namespace sw::core
 			return reference;
 		}
 
-		// Добавление компонента, тип которого известен только во время выполнения (статусы).
-		// Компонент этого типа уже есть — std::logic_error.
 		void add(std::type_index type, std::unique_ptr<IComponent> component);
 
-		// Нет компонента — false
 		bool remove(std::type_index type);
 
-		// Удаляет компоненты, для которых predicate вернул true (истёкшие статусы);
-		// возвращает число удалённых
 		size_t removeIf(const std::function<bool(const IComponent&)>& predicate);
 
 		template <class T>
@@ -71,7 +62,6 @@ namespace sw::core
 			return const_cast<T*>(std::as_const(*this).tryGet<T>());
 		}
 
-		// Нет компонента — std::logic_error с именем типа: это баг сборки юнита
 		template <class T>
 		const T& get() const
 		{
@@ -94,7 +84,6 @@ namespace sw::core
 			return _components.contains(type);
 		}
 
-		// Компонент по типу, известному только во время выполнения; нет — nullptr
 		IComponent* find(std::type_index type)
 		{
 			const auto found = _components.find(type);

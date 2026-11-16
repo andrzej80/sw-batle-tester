@@ -47,14 +47,12 @@ TEST(Chebyshev_is_max_of_axis_distances)
 	CHECK_EQ(chebyshev({4, 4}, {4, 4}), int64_t{0});
 	CHECK_EQ(chebyshev({0, 0}, {1, 1}), int64_t{1});
 	CHECK_EQ(chebyshev({7, 0}, {3, 0}), int64_t{4});
-	// Тики 7–8 лога из исходного main.cpp: Охотник в (5,0), цель в (0,4) — дистанция 5
 	CHECK_EQ(chebyshev({5, 0}, {0, 4}), int64_t{5});
 	CHECK_EQ(chebyshev({0, 4}, {5, 0}), int64_t{5});
 }
 
 TEST(Chebyshev_handles_far_corners_of_the_largest_map)
 {
-	// Карта по формату может быть до 4294967295 x 4294967295 (SPECIFICATION.md, п. 4.1)
 	const int64_t farthest = 4294967294;
 	CHECK_EQ(chebyshev({0, 0}, {farthest, farthest}), farthest);
 }

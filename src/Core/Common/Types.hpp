@@ -8,8 +8,6 @@
 
 namespace sw::core
 {
-	// Идентификатор юнита. Обёртка, а не число: с id не считают, и его нельзя
-	// перепутать с количеством (SPECIFICATION.md, п. 1.4).
 	struct UnitId
 	{
 		uint32_t value{};
@@ -18,11 +16,8 @@ namespace sw::core
 		friend auto operator<=>(UnitId, UnitId) = default;
 	};
 
-	// Номер тика: только ++ и сравнение
 	using Tick = uint64_t;
 
-	// Клетка карты. Координаты знаковые: в домене все величины — int64_t (п. 1.4),
-	// неотрицательность и попадание в карту проверяет Map.
 	struct Position
 	{
 		int64_t x{};
@@ -31,7 +26,6 @@ namespace sw::core
 		friend bool operator==(Position, Position) = default;
 	};
 
-	// Расстояние Чебышёва: max(|dx|, |dy|) — число шагов по 8 направлениям
 	int64_t chebyshev(Position a, Position b);
 
 	std::ostream& operator<<(std::ostream& stream, UnitId id);
