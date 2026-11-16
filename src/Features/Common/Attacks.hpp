@@ -10,13 +10,14 @@ namespace sw::features
 	class MeleeAttack final : public core::IAction
 	{
 	public:
-		explicit MeleeAttack(ValueSource damage);
+		explicit MeleeAttack(ValueSource damage, Distance reach = distance(1, 1));
 
 		bool tryExecute(const core::Unit& self, core::TurnContext& context) override;
 		void requirements(core::ComponentRequirements& requirements) const override;
 
 	private:
 		ValueSource _damage;
+		Distance _reach;
 	};
 
 	using ShotCondition = std::function<bool(const core::Unit& self, const core::TurnContext& context)>;

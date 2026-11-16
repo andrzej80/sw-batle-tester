@@ -18,3 +18,9 @@
   параметром, по умолчанию `{1,1}`); требующих согласования нет.
 - **Готово:** все прежние тесты и эталоны сценариев проходят без правок;
   `git diff main -- src/Core` пуст.
+- **Итог (выполнена):** `MeleeAttack(ValueSource damage, Distance reach = distance(1, 1))`;
+  параметр назван `reach`, а не `distance`, — иначе значение по умолчанию сослалось бы на
+  сам параметр, а не на функцию `distance(...)`. Дистанция вычисляется при каждом ударе,
+  её `stat<T>` объявляются в `requirements`. Три новых теста в
+  `tests/Features/Common/FeaturesCommonTests.cpp`; сборка clang 15/18 с `-Werror`, ASan +
+  UBSan, clang-tidy-18 и clang-format-18 — без замечаний.

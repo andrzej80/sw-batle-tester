@@ -396,7 +396,7 @@
 
 | Действие | Поведение |
 |---|---|
-| `MeleeAttack(stat<T>)` | цели — `attack({melee, physical}, {1,1})`; нет — `false`; иначе случайная, урон `max(0, T)`, `true` |
+| `MeleeAttack(stat<T>, distance?)` | цели — `attack({melee, physical}, дистанция)`, дистанция по умолчанию `{1,1}` (Ворону — `{0,1}`); нет — `false`; иначе случайная, урон `max(0, T)`, `true` |
 | `RangedAttack(stat<T>, distance, condition?)` | условие не выполнено — `false`; цели — `attack({ranged, physical}, distance)`; дальше как `MeleeAttack` |
 | `RequireNoAdjacentOccupying` | `false`, если рядом есть живой юнит с `occupiesCell` |
 
