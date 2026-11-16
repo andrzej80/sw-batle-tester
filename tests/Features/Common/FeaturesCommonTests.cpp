@@ -175,6 +175,51 @@ TEST(MeleeAttack_negative_stat_hits_for_zero)
 	CHECK(arena.attacks == (Lines{"1->2 damage=0 hp=10"}));
 }
 
+TEST(MeleeAttack_by_default_does_not_reach_its_own_cell)
+{
+	FeatureArena arena(10, 10);
+	UnitBuilder builder(UnitId{1}, "Swordsman", {5, 5});
+	builder.with<sw::core::Health>(10).with<Strength>(3).action<MeleeAttack>(stat<Strength>);
+	Unit& swordsman = arena.place(builder);
+	arena.dummy(2, {5, 5}, /*occupiesCell*/ false);
+	const uint64_t changes = arena.world.activity().changes();
+
+	CHECK(!act(swordsman, arena.context()));
+	CHECK(arena.attacks.empty());
+	CHECK_EQ(arena.world.activity().changes(), changes);
+}
+
+TEST(MeleeAttack_with_reach_from_zero_hits_on_its_own_cell_and_adjacent)
+{
+	FeatureArena arena(10, 10);
+	UnitBuilder builder(UnitId{1}, "Raven", {5, 5});
+	builder.occupiesCell(false).with<sw::core::Health>(10).with<Agility>(4).action<MeleeAttack>(
+		stat<Agility>, distance(0, 1));
+	Unit& raven = arena.place(builder);
+	Unit& onCell = arena.dummy(2, {5, 5});
+
+	CHECK(act(raven, arena.context()));
+	CHECK(arena.attacks == (Lines{"1->2 damage=4 hp=6"}));
+
+	kill(onCell);
+	arena.dummy(3, {6, 4});
+	arena.dummy(4, {7, 5});
+	CHECK(act(raven, arena.context()));
+	CHECK(arena.attacks == (Lines{"1->2 damage=4 hp=6", "1->3 damage=4 hp=6"}));
+}
+
+TEST(MeleeAttack_declares_stats_of_its_reach)
+{
+	const MeleeAttack claw(stat<Agility>, distance(0, stat<Range>));
+	sw::core::ComponentRequirements requirements;
+	claw.requirements(requirements);
+
+	UnitBuilder builder(UnitId{1}, "Bare", {0, 0});
+	builder.with<Agility>(4);
+	const Unit unit = builder.build();
+	CHECK(requirements.missingIn(unit.components()) == (std::vector<std::string>{"sw::features::Range"}));
+}
+
 TEST(RangedAttack_shoots_within_the_stat_range)
 {
 	FeatureArena arena(10, 10);

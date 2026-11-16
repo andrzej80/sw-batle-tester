@@ -1,0 +1,60 @@
+[1] MAP_CREATED width=12 height=11 
+[1] UNIT_SPAWNED unitId=1 unitType=Tower x=0 y=0 
+[1] UNIT_SPAWNED unitId=2 unitType=Mine x=5 y=0 
+[1] UNIT_SPAWNED unitId=3 unitType=Raven x=9 y=0 
+[1] MARCH_STARTED unitId=3 x=9 y=0 targetX=1 targetY=0 
+[1] UNIT_SPAWNED unitId=4 unitType=Hunter x=0 y=10 
+[1] UNIT_SPAWNED unitId=5 unitType=Swordsman x=6 y=10 
+[1] MARCH_STARTED unitId=5 x=6 y=10 targetX=1 targetY=10 
+[1] UNIT_SPAWNED unitId=6 unitType=Healer x=9 y=10 
+[1] MARCH_STARTED unitId=6 x=9 y=10 targetX=3 targetY=10 
+[2] UNIT_MOVED unitId=3 x=8 y=0 
+[2] UNIT_MOVED unitId=3 x=7 y=0 
+[2] UNIT_MOVED unitId=5 x=5 y=10 
+[2] UNIT_MOVED unitId=6 x=8 y=10 
+[3] UNIT_MOVED unitId=3 x=6 y=0 
+[3] UNIT_MOVED unitId=3 x=5 y=0 
+[3] UNIT_MOVED unitId=5 x=4 y=10 
+[3] UNIT_MOVED unitId=6 x=7 y=10 
+[4] MINE_EXPLODED unitId=2 
+[4] UNIT_ATTACKED attackerUnitId=2 targetUnitId=3 damage=2 targetHp=8 
+[4] UNIT_MOVED unitId=3 x=4 y=0 
+[4] UNIT_MOVED unitId=3 x=3 y=0 
+[4] UNIT_MOVED unitId=5 x=3 y=10 
+[4] UNIT_MOVED unitId=6 x=6 y=10 
+[5] UNIT_ATTACKED attackerUnitId=1 targetUnitId=3 damage=2 targetHp=6 
+[5] UNIT_MOVED unitId=3 x=2 y=0 
+[5] UNIT_MOVED unitId=3 x=1 y=0 
+[5] MARCH_ENDED unitId=3 x=1 y=0 
+[5] UNIT_MOVED unitId=5 x=2 y=10 
+[5] UNIT_MOVED unitId=6 x=5 y=10 
+[6] UNIT_ATTACKED attackerUnitId=1 targetUnitId=3 damage=2 targetHp=4 
+[6] UNIT_ATTACKED attackerUnitId=3 targetUnitId=1 damage=3 targetHp=7 
+[6] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=2 targetHp=8 
+[6] UNIT_MOVED unitId=5 x=1 y=10 
+[6] MARCH_ENDED unitId=5 x=1 y=10 
+[6] UNIT_MOVED unitId=6 x=4 y=10 
+[7] UNIT_ATTACKED attackerUnitId=1 targetUnitId=3 damage=2 targetHp=2 
+[7] UNIT_ATTACKED attackerUnitId=3 targetUnitId=1 damage=3 targetHp=4 
+[7] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=1 targetHp=7 
+[7] UNIT_ATTACKED attackerUnitId=5 targetUnitId=4 damage=2 targetHp=8 
+[7] UNIT_MOVED unitId=6 x=3 y=10 
+[7] MARCH_ENDED unitId=6 x=3 y=10 
+[8] UNIT_ATTACKED attackerUnitId=1 targetUnitId=3 damage=2 targetHp=0 
+[8] UNIT_DIED unitId=3 
+[8] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=1 targetHp=6 
+[8] UNIT_ATTACKED attackerUnitId=5 targetUnitId=4 damage=2 targetHp=6 
+[8] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=7 
+[9] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=1 targetHp=6 
+[9] UNIT_ATTACKED attackerUnitId=5 targetUnitId=4 damage=2 targetHp=4 
+[9] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=7 
+[10] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=1 targetHp=6 
+[10] UNIT_ATTACKED attackerUnitId=5 targetUnitId=4 damage=2 targetHp=2 
+[10] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=7 
+[11] UNIT_ATTACKED attackerUnitId=4 targetUnitId=5 damage=1 targetHp=6 
+[11] UNIT_ATTACKED attackerUnitId=5 targetUnitId=4 damage=2 targetHp=0 
+[11] UNIT_DIED unitId=4 
+[11] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=7 
+[12] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=8 
+[13] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=9 
+[14] UNIT_HEALED healerUnitId=6 targetUnitId=5 amount=1 targetHp=10 

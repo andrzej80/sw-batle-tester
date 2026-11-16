@@ -1,0 +1,17 @@
+[1] MAP_CREATED width=10 height=3 
+[1] UNIT_SPAWNED unitId=1 unitType=Mine x=5 y=0 
+[1] UNIT_SPAWNED unitId=2 unitType=Swordsman x=0 y=0 
+[1] UNIT_SPAWNED unitId=3 unitType=Swordsman x=9 y=2 
+[1] MARCH_STARTED unitId=2 x=0 y=0 targetX=9 targetY=0 
+[2] UNIT_MOVED unitId=2 x=1 y=0 
+[3] UNIT_MOVED unitId=2 x=2 y=0 
+[4] UNIT_MOVED unitId=2 x=3 y=0 
+[5] UNIT_MOVED unitId=2 x=4 y=0 
+[6] MINE_EXPLODED unitId=1 
+[6] UNIT_ATTACKED attackerUnitId=1 targetUnitId=2 damage=3 targetHp=7 
+[6] UNIT_MOVED unitId=2 x=5 y=0 
+[7] UNIT_MOVED unitId=2 x=6 y=0 
+[8] UNIT_MOVED unitId=2 x=7 y=0 
+[9] UNIT_MOVED unitId=2 x=8 y=0 
+[10] UNIT_MOVED unitId=2 x=9 y=0 
+[10] MARCH_ENDED unitId=2 x=9 y=0 

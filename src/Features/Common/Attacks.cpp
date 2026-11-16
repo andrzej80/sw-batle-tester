@@ -29,18 +29,21 @@ namespace sw::features
 		}
 	}
 
-	MeleeAttack::MeleeAttack(ValueSource damage) :
-			_damage(std::move(damage))
+	MeleeAttack::MeleeAttack(ValueSource damage, Distance reach) :
+			_damage(std::move(damage)),
+			_reach(std::move(reach))
 	{}
 
 	bool MeleeAttack::tryExecute(const core::Unit& self, core::TurnContext& context)
 	{
-		return hitRandomTarget(self, context, attack({tags::Melee, tags::Physical}, {1, 1}), _damage.read(self));
+		const core::TargetSpec spec = attack({tags::Melee, tags::Physical}, _reach.resolve(self));
+		return hitRandomTarget(self, context, spec, _damage.read(self));
 	}
 
 	void MeleeAttack::requirements(core::ComponentRequirements& requirements) const
 	{
 		_damage.declare(requirements);
+		_reach.declare(requirements);
 	}
 
 	RangedAttack::RangedAttack(ValueSource damage, Distance distance, ShotCondition condition) :

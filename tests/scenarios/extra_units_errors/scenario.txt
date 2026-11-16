@@ -1,0 +1,15 @@
+// Ошибки команд новых юнитов: статы, MARCH на Башню и Мину, аргументы, занятая клетка.
+// MARCH на отклонённую Башню ошибки не даёт: первопричина уже в списке.
+CREATE_MAP 10 10
+SPAWN_TOWER 1 0 0 0 0
+MARCH 1 4 4
+SPAWN_HEALER 2 1 1 10
+SPAWN_RAVEN 3 2 2 0 2
+SPAWN_MINE 4 3 3 0
+SPAWN_TOWER 5 5 5 10 2
+SPAWN_MINE 6 7 7 2 9
+SPAWN_MINE 7 8 8 2
+MARCH 5 0 5
+MARCH 7 0 8
+SPAWN_HEALER 8 5 5 10 1
+SPAWN_RAVEN 9 5 5 10 1
